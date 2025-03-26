@@ -161,7 +161,7 @@ namespace NFalkorDB.Tests
             Assert.Equal(1, createNonExistingIndexResult.Statistics.IndicesCreated);
 
             var exception = Assert.Throws<RedisServerException>(() => 
-                _api.GraphQuery("social", "CREATE INDEX ON :person(age)");
+                _api.GraphQuery("social", "CREATE INDEX ON :person(age)")
             );
             Assert.Contains("Attribute 'age' is already indexed", exception.Message);
 
