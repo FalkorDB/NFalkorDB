@@ -779,6 +779,9 @@ namespace NFalkorDB.Tests
         [Fact]
         public void TestParametersReadOnly()
         {
+            // Dummy call to create the empty graph
+            _api.GraphQuery("social", "RETURN 1");
+
             var parameters = new object[]
             {
                 1, 2.3, true, false, null, "str", 'a', "b", new List<int> {1, 2, 3},
