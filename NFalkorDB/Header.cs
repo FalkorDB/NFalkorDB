@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using StackExchange.Redis;
 
-namespace NRedNFalkorDBisGraph
+namespace NFalkorDB
 {
     /// <summary>
     /// Query response header interface. Represents the response schema (column names and types).
