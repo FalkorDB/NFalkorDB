@@ -3,14 +3,14 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
 VisualStudioVersion = 15.0.28307.329
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NRedisGraph", "NRedisGraph\NRedisGraph.csproj", "{08BEBB35-ABE7-4853-8E71-4FF18A3C7746}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NFalkorDB", "NFalkorDB\NFalkorDB.csproj", "{08BEBB35-ABE7-4853-8E71-4FF18A3C7746}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{30FBE31B-9624-4CA5-AFFB-E3EA45A5E41F}"
 	ProjectSection(SolutionItems) = preProject
 		README.md = README.md
 	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NRedisGraph.Tests", "NRedisGraph.Tests\NRedisGraph.Tests.csproj", "{FBF23117-D59F-4C28-AC14-F7F2EDA88512}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NFalkorDB.Tests", "NFalkorDB.Tests\NFalkorDB.Tests.csproj", "{FBF23117-D59F-4C28-AC14-F7F2EDA88512}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

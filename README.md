@@ -1,10 +1,10 @@
-# NRedisGraph
+# NFalkorDB
 
 [![Build Status](https://github.com/tombatron/NRedisGraph/actions/workflows/dotnet.yml/badge.svg)](https://github.com/tombatron/NRedisGraph/actions/workflows/dotnet.yml)
 
 ## Overview
 
-NRedisGraph is a series of extensions methods for the [StackExchange.Redis](https://github.com/StackExchange/StackExchange.Redis) library that will enable you to interact with the [Redis](https://redis.io) module [RedisGraph](https://oss.redislabs.com/redisgraph/). This is made possible by the `Execute` and `ExecuteAsync` methods already present in the StackExchange.Redis library. 
+NRedisGraph is a series of extensions methods for the [StackExchange.Redis](https://github.com/StackExchange/StackExchange.Redis) library that will enable you to interact with the [Redis](https://redis.io) module [RedisGraph](https://oss.redislabs.com/redisgraph/). This is made possible by the `Execute` and `ExecuteAsync` methods already present in the StackExchange.Redis library.
 
 The intent of this library is to duplicate the API (as much as possible) of the RedisGraph module support found embedded in the [Jedis](https://github.com/xetorthio/jedis) library.
 
@@ -14,7 +14,7 @@ The intent of this library is to duplicate the API (as much as possible) of the 
 
 ## Usage
 
-I'm assuming that you already have the [RedisGraph](https://oss.redislabs.com/redisgraph/) module installed on your Redis server. 
+I'm assuming that you already have the [RedisGraph](https://oss.redislabs.com/redisgraph/) module installed on your Redis server.
 
 You can verify that the module is installed by executing the following command:
 

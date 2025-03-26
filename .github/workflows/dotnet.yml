@@ -13,7 +13,7 @@ jobs:
 
     services:
       redis:
-        image: redislabs/redisgraph
+        image: falkordb/falkordb
         ports:
           - 6379:6379    
     
