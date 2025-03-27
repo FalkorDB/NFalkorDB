@@ -10,15 +10,16 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
-    - uses: nuget/setup-nuget@v1
+    - uses: actions/checkout@v4
+    - uses: nuget/setup-nuget@v2
       with:
         nuget-api-key: ${{ secrets.NUGET_API_KEY }}
         nuget-version: '5.x'
     - name: Setup .NET
-      uses: actions/setup-dotnet@v1
+      uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: 6.0.x
+        dotnet-version: 6.x
+        cache: true
     - name: Clean
       run: dotnet clean ./NFalkorDB.sln --configuration Release && dotnet nuget locals all --clear
     - name: Restore dependencies

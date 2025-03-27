@@ -22,7 +22,7 @@ namespace NFalkorDB
         public int Source { get; set; }
 
         /// <summary>
-        /// The ID of the desination node.
+        /// The ID of the destination node.
         /// </summary>
         /// <value></value>
         public int Destination { get; set; }
