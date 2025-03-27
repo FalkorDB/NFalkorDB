@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using StackExchange.Redis;
 
 namespace NFalkorDB;
@@ -70,7 +71,7 @@ public sealed class Header
             return false;
         }
 
-        return Objects.AreEqual(SchemaNames, header.SchemaNames);
+        return SchemaNames.SequenceEqual(header.SchemaNames);
     }
 
     /// <summary>
