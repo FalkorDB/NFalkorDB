@@ -19,11 +19,10 @@ jobs:
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: 6.x
-        cache: true
     - name: Clean
       run: dotnet clean ./NFalkorDB.sln --configuration Release && dotnet nuget locals all --clear
     - name: Restore dependencies
-      run: dotnet restore --force-evaluate --use-lock-file
+      run: dotnet restore
     - name: Build
       run: dotnet build --no-restore --configuration Release                
     - name: Publish NuGet Package
