@@ -23,7 +23,7 @@ jobs:
     - name: Clean
       run: dotnet clean ./NFalkorDB.sln --configuration Release && dotnet nuget locals all --clear
     - name: Restore dependencies
-      run: dotnet restore --use-lock-file
+      run: dotnet restore --force-evaluate --use-lock-file
     - name: Build
       run: dotnet build --no-restore --configuration Release                
     - name: Publish NuGet Package

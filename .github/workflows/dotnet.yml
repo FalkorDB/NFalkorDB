@@ -25,7 +25,7 @@ jobs:
         dotnet-version: 6.x
         cache: true
     - name: Restore dependencies
-      run: dotnet restore --use-lock-file
+      run: dotnet restore --force-evaluate --use-lock-file
     - name: Build
       run: dotnet build --no-restore
     - name: Test
