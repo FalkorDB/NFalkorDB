@@ -42,7 +42,7 @@ public class Number25 : BaseTest
         // Read from the read-only replica
         string readQuery = "MATCH x=(p:Person) RETURN nodes(x) as nodes";
 
-        ResultSet records = _readonlyApi.GraphReadOnlyQuery(readQuery);
+        ResultSet records = _readonlyApi.ReadOnlyQuery(readQuery);
 
         var result = new List<Person>();
 

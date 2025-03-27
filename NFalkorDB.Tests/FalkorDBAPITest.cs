@@ -286,7 +286,7 @@ public class FalkorDBAPITest : BaseTest
 
         Assert.Equal(new[] {"a", "r", "a.name", "a.age", "a.doubleValue", "a.boolValue", "a.nullValue", "r.place", "r.since", "r.doubleValue", "r.boolValue", "r.nullValue"}, record.Keys);
 
-        Assert.Equal(new List<object> {expectedNode, expectedEdge, name, age, doubleValue, true, null, place, since, doubleValue, false, null}, record.Values);
+        Assert.Equal([expectedNode, expectedEdge, name, age, doubleValue, true, null, place, since, doubleValue, false, null], record.Values);
 
         Assert.Equal("roi", record.GetString(2));
         Assert.Equal("32", record.GetString(3));
@@ -345,7 +345,7 @@ public class FalkorDBAPITest : BaseTest
             Assert.Single(resultSet);
             Record record = resultSet.First();
             Assert.Equal(new[] {"a", "r", "a.age"}, record.Keys);
-            Assert.Equal(new List<object> {expectedNode, expectedEdge, 32L}, record.Values);
+            Assert.Equal([expectedNode, expectedEdge, 32L], record.Values);
         }
 
         //test for update in local cache
@@ -379,7 +379,7 @@ public class FalkorDBAPITest : BaseTest
             Assert.Single(resultSet);
             Record record = resultSet.First();
             Assert.Equal(new[] {"a", "r"}, record.Keys);
-            Assert.Equal(new List<object> {expectedNode, expectedEdge}, record.Values);
+            Assert.Equal([expectedNode, expectedEdge], record.Values);
         }
     }
 
@@ -420,7 +420,7 @@ public class FalkorDBAPITest : BaseTest
         Assert.Single(resultSet);
         Record record = resultSet.First();
         Assert.Equal(new[] {"a", "r"}, record.Keys);
-        Assert.Equal(new List<object> {expectedNode, expectedEdge}, record.Values);
+        Assert.Equal([expectedNode, expectedEdge], record.Values);
 
         //test for local cache updates
 
@@ -448,7 +448,7 @@ public class FalkorDBAPITest : BaseTest
         Assert.Single(resultSet);
         record = resultSet.First();
         Assert.Equal(new[] {"a", "r"}, record.Keys);
-        Assert.Equal(new List<object> {expectedNode, expectedEdge}, record.Values);
+        Assert.Equal([expectedNode, expectedEdge], record.Values);
     }
 
     [Fact]
@@ -461,15 +461,19 @@ public class FalkorDBAPITest : BaseTest
     [Fact]
     public void TestEscapedQueryAgain()
     {
-        var params1 = new Dictionary<string, object>();
-        params1.Put("s1", "S\"'");
-        params1.Put("s2", "S'\"");
+        var params1 = new Dictionary<string, object>
+        {
+            { "s1", "S\"'" },
+            { "s2", "S'\"" }
+        };
         
         Assert.NotNull(_api.Query("CREATE (:escaped{s1:$s1,s2:$s2})", params1));
 
-        var params2 = new Dictionary<string, object>();
-        params2.Put("s1", "S\"'");
-        params2.Put("s2", "S'\"");
+        var params2 = new Dictionary<string, object>
+        {
+            { "s1", "S\"'" },
+            { "s2", "S'\"" }
+        };
 
         Assert.NotNull(_api.Query("MATCH (n) where n.s1=$s1 and n.s2=$s2 RETURN n", params2));
     }
@@ -643,7 +647,7 @@ public class FalkorDBAPITest : BaseTest
         var param = new Dictionary<string, object>();
 
         object expected = parameters;
-        param.Put("param", expected);
+        param.Add("param", expected);
         ResultSet resultSet = _api.Query("RETURN $param", param);
         Assert.Single(resultSet);
         Record r = resultSet.First();
@@ -675,8 +679,8 @@ public class FalkorDBAPITest : BaseTest
         for (int i = 0; i < parameters.Length; i++)
         {
             var param = parameters[i];
-            paramDict.Put("param", param);
-            ResultSet resultSetRo = _api.GraphReadOnlyQuery("RETURN $param", paramDict);
+            paramDict["param"] = param;
+            ResultSet resultSetRo = _api.ReadOnlyQuery("RETURN $param", paramDict);
             Assert.Single(resultSetRo);
 
             var oRo = resultSetRo.First().GetValue<object>(0);
@@ -733,8 +737,10 @@ public class FalkorDBAPITest : BaseTest
     public void Test64BitNumber()
     {
         long value = 1L << 40;
-        var parameters = new Dictionary<string, object>();
-        parameters.Put("val", value);
+        var parameters = new Dictionary<string, object>
+        {
+            { "val", value }
+        };
         ResultSet resultSet = _api.Query("CREATE (n {val:$val}) RETURN n.val", parameters);
 
         Assert.Single(resultSet);
@@ -748,8 +754,10 @@ public class FalkorDBAPITest : BaseTest
         _api.Query("CREATE (:N {val:1}), (:N {val:2})");
 
         // First time should not be loaded from execution cache
-        var parameters = new Dictionary<string, object>();
-        parameters.Put("val", 1L);
+        var parameters = new Dictionary<string, object>
+        {
+            { "val", 1L }
+        };
 
         var resultSet = _api.Query("MATCH (n:N {val:$val}) RETURN n.val", parameters);
 
@@ -772,22 +780,26 @@ public class FalkorDBAPITest : BaseTest
     [Fact]
     public void TestMapDataType()
     {
-        var expected = new Dictionary<string, object>();
-        expected.Put("a", (long)1);
-        expected.Put("b", "str");
-        expected.Put("c", null);
+        var expected = new Dictionary<string, object>
+        {
+            { "a", (long)1 },
+            { "b", "str" },
+            { "c", null }
+        };
         var d = new List<long>
         {
             1,
             2,
             3
         };
-        expected.Put("d", d);
-        expected.Put("e", true);
-        var f = new Dictionary<string, object>();
-        f.Put("x", (long)1);
-        f.Put("y", (long)2);
-        expected.Put("f", f);
+        expected.Add("d", d);
+        expected.Add("e", true);
+        var f = new Dictionary<string, object>
+        {
+            { "x", (long)1 },
+            { "y", (long)2 }
+        };
+        expected.Add("f", f);
         ResultSet res = _api.Query("RETURN {a:1, b:'str', c:NULL, d:[1,2,3], e:True, f:{x:1, y:2}}");
         Assert.Single(res);
         // Record r = res.iterator().next();
@@ -849,9 +861,11 @@ public class FalkorDBAPITest : BaseTest
         _api.Query("CREATE (:N {val:1}), (:N {val:2})");
 
         // First time should not be loaded from execution cache
-        var parameters = new Dictionary<string, object>();
-        parameters.Put("val", 1L);
-        var resultSet = _api.GraphReadOnlyQuery("MATCH (n:N {val:$val}) RETURN n.val", parameters);
+        var parameters = new Dictionary<string, object>
+        {
+            { "val", 1L }
+        };
+        var resultSet = _api.ReadOnlyQuery("MATCH (n:N {val:$val}) RETURN n.val", parameters);
 
         Assert.Single(resultSet);
         Assert.Equal(parameters["val"], resultSet.First().Values[0]);
@@ -861,7 +875,7 @@ public class FalkorDBAPITest : BaseTest
         // from cache at least once
         for (int i = 0; i < 64; i++)
         {
-            resultSet = _api.GraphReadOnlyQuery("MATCH (n:N {val:$val}) RETURN n.val", parameters);
+            resultSet = _api.ReadOnlyQuery("MATCH (n:N {val:$val}) RETURN n.val", parameters);
         }
 
         Assert.Single(resultSet);
@@ -874,7 +888,7 @@ public class FalkorDBAPITest : BaseTest
     public void TestSimpleReadOnly()
     {
         _api.Query("CREATE (:person{name:'filipe',age:30})");
-        var rsRo = _api.GraphReadOnlyQuery("MATCH (a:person) WHERE (a.name = 'filipe') RETURN a.age");
+        var rsRo = _api.ReadOnlyQuery("MATCH (a:person) WHERE (a.name = 'filipe') RETURN a.age");
         Assert.Single(rsRo);
         Assert.Equal(30L, rsRo.First().GetValue<long>(0));
     }

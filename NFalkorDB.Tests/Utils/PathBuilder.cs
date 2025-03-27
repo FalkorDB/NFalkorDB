@@ -11,8 +11,8 @@ public sealed class PathBuilder
 
     public PathBuilder()
     {
-        _nodes = new List<Node>();
-        _edges = new List<Edge>();
+        _nodes = [];
+        _edges = [];
 
         _currentAppendClass = typeof(Node);
     }

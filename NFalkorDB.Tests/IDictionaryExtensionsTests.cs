@@ -5,32 +5,6 @@ namespace NFalkorDB.Tests;
 
 public class IDictionaryExtensionsTests
 {
-    public class PutIfAbsentWill
-    {
-        [Fact]
-        public void PlaceAKeyInTheDictionaryIfItDoesntAlreadyExist()
-        {
-            var test = new Dictionary<string, string>();
-
-            test.PutIfAbsent("hello", "world");
-
-            Assert.Equal("world", test["hello"]);
-        }
-
-        [Fact]
-        public void NotPlaceAKeyInTheDictionaryIfItDoesntAlreadyExist()
-        {
-            var test = new Dictionary<string, string>
-            {
-                { "goodnight", "moon" }
-            };
-
-            test.PutIfAbsent("goodnight", "world");
-
-            Assert.Equal("moon", test["goodnight"]);
-        }
-    }
-
     public class SequenceEqualCan
     {
         [Fact]
