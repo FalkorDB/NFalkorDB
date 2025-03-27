@@ -29,6 +29,11 @@
         "resolved": "3.0.2",
         "contentHash": "oXbusR6iPq0xlqoikjdLvzh+wQDkMv9If58myz9MEzldS4nIcp442Btgs2sWbYWV+caEluMe2pQCZ0hUZgPiow=="
       },
+      "Microsoft.Bcl.HashCode": {
+        "type": "Transitive",
+        "resolved": "6.0.0",
+        "contentHash": "GI4jcoi6eC9ZhNOQylIBaWOQjyGaR8T6N3tC1u8p3EXfndLCVNNWa+Zp+ocjvvS3kNBN09Zma2HXL0ezO0dRfw=="
+      },
       "Microsoft.CodeCoverage": {
         "type": "Transitive",
         "resolved": "17.13.0",
@@ -131,6 +136,7 @@
       "nfalkordb": {
         "type": "Project",
         "dependencies": {
+          "Microsoft.Bcl.HashCode": "[6.*, )",
           "StackExchange.Redis": "[2.*, )"
         }
       }

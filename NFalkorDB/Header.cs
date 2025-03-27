@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using StackExchange.Redis;
 
@@ -44,7 +45,7 @@ namespace NFalkorDB
         {
             SchemaNames = [];
 
-            foreach(RedisResult[] tuple in (RedisResult[])result)
+            foreach (RedisResult[] tuple in (RedisResult[])result)
             {
                 SchemaNames.Add((string)tuple[1]);
             }
@@ -69,5 +70,17 @@ namespace NFalkorDB
 
         public override string ToString() =>
             $"Header{{schemaNames=[{string.Join(", ", SchemaNames)}]}}";
+
+        public override int GetHashCode()
+        {
+            var hash = new HashCode();
+
+            foreach (var name in SchemaNames)
+            {
+                hash.Add(name);
+            }
+
+            return hash.ToHashCode();
+        }
     }
 }
