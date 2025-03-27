@@ -15,10 +15,6 @@ jobs:
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: 9.x
-    - uses: nuget/setup-nuget@v2
-      with:
-        nuget-api-key: ${{ secrets.NUGET_API_KEY }}
-        nuget-version: latest
     - name: Clean
       run: dotnet clean ./NFalkorDB.sln --configuration Release && dotnet nuget locals all --clear
     - name: Restore dependencies
@@ -28,4 +24,4 @@ jobs:
     - name: Publish NuGet Package
       env:
         api_key: ${{secrets.NUGET_API_KEY}}
-      run: "nuget push NFalkorDB/bin/Release/*.nupkg -Source https://api.nuget.org/v3/index.json -ApiKey $api_key"
+      run: "dotnet nuget push NFalkorDB/bin/Release/*.nupkg -Source https://api.nuget.org/v3/index.json -ApiKey $api_key"
