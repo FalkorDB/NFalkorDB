@@ -11,14 +11,14 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - uses: nuget/setup-nuget@v2
-      with:
-        nuget-api-key: ${{ secrets.NUGET_API_KEY }}
-        nuget-version: latest
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: 9.x
+    - uses: nuget/setup-nuget@v2
+      with:
+        nuget-api-key: ${{ secrets.NUGET_API_KEY }}
+        nuget-version: latest
     - name: Clean
       run: dotnet clean ./NFalkorDB.sln --configuration Release && dotnet nuget locals all --clear
     - name: Restore dependencies
