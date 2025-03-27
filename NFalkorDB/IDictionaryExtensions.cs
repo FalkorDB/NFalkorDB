@@ -3,54 +3,53 @@ using System.Runtime.CompilerServices;
 
 [assembly: InternalsVisibleTo("NFalkorDB.Tests")]
 
-namespace NFalkorDB
+namespace NFalkorDB;
+
+internal static class IDictionaryExtensions
 {
-    internal static class IDictionaryExtensions
+    internal static void PutIfAbsent<TKey, TValue>(this IDictionary<TKey, TValue> @this, TKey key, TValue value)
     {
-        internal static void PutIfAbsent<TKey, TValue>(this IDictionary<TKey, TValue> @this, TKey key, TValue value)
+        if (!@this.ContainsKey(key))
         {
-            if (!@this.ContainsKey(key))
-            {
-                @this.Add(key, value);
-            }
+            @this.Add(key, value);
+        }
+    }
+
+    internal static void Put<TKey, TValue>(this IDictionary<TKey, TValue> @this, TKey key, TValue value)
+    {
+        if (@this.ContainsKey(key))
+        {
+            @this[key] = value;
+        }
+        else
+        {
+            @this.Add(key, value);
+        }
+    }
+
+    internal static bool SequenceEqual<TKey, TValue>(this IDictionary<TKey, TValue> @this, IDictionary<TKey, TValue> that)
+    {
+        if (@this == default(IDictionary<TKey, TValue>) || that == default(IDictionary<TKey, TValue>))
+        {
+            return false;
         }
 
-        internal static void Put<TKey, TValue>(this IDictionary<TKey, TValue> @this, TKey key, TValue value)
+        if (@this.Count != that.Count)
         {
-            if (@this.ContainsKey(key))
-            {
-                @this[key] = value;
-            }
-            else
-            {
-                @this.Add(key, value);
-            }
+            return false;
         }
 
-        internal static bool SequenceEqual<TKey, TValue>(this IDictionary<TKey, TValue> @this, IDictionary<TKey, TValue> that)
+        foreach (var key in @this.Keys)
         {
-            if (@this == default(IDictionary<TKey, TValue>) || that == default(IDictionary<TKey, TValue>))
+            var thisValue = @this[key];
+            var thatValue = that[key];
+
+            if (!thisValue.Equals(thatValue))
             {
                 return false;
             }
-
-            if (@this.Count != that.Count)
-            {
-                return false;
-            }
-
-            foreach (var key in @this.Keys)
-            {
-                var thisValue = @this[key];
-                var thatValue = that[key];
-
-                if (!thisValue.Equals(thatValue))
-                {
-                    return false;
-                }
-            }
-
-            return true;
         }
+
+        return true;
     }
 }

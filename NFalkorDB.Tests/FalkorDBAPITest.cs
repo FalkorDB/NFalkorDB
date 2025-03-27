@@ -12,7 +12,8 @@ namespace NFalkorDB.Tests
     public class FalkorDBAPITest : BaseTest
     {
         private ConnectionMultiplexer _muxr;
-        private FalkorDB _api;
+        private Graph _api;
+        private Graph _whatever;
 
         public FalkorDBAPITest() : base()
         {
@@ -24,7 +25,8 @@ namespace NFalkorDB.Tests
 
             _muxr.GetDatabase().Execute("FLUSHDB");
 
-            _api = new FalkorDB(_muxr.GetDatabase(0));
+            _api = new FalkorDB(_muxr.GetDatabase(0)).SelectGraph("social");
+            _whatever = new FalkorDB(_muxr.GetDatabase(0)).SelectGraph("whatever");
         }
 
         protected override void AfterTest()
@@ -38,7 +40,7 @@ namespace NFalkorDB.Tests
         public void TestCreateNode()
         {
             // Create a node    	
-            ResultSet resultSet = _api.Query("social", "CREATE ({name:'roi',age:32})");
+            ResultSet resultSet = _api.Query("CREATE ({name:'roi',age:32})");
 
             Assert.Equal(1, resultSet.Statistics.NodesCreated);
             Assert.Null(resultSet.Statistics.GetStringValue(Label.NodesDeleted));
@@ -54,7 +56,7 @@ namespace NFalkorDB.Tests
         public void TestCreateLabeledNode()
         {
             // Create a node with a label
-            ResultSet resultSet = _api.Query("social", "CREATE (:human{name:'danny',age:12})");
+            ResultSet resultSet = _api.Query("CREATE (:human{name:'danny',age:12})");
             Assert.Empty(resultSet);
             Assert.Equal("1", resultSet.Statistics.GetStringValue(Label.NodesCreated));
             Assert.Equal("2", resultSet.Statistics.GetStringValue(Label.PropertiesSet));
@@ -65,7 +67,7 @@ namespace NFalkorDB.Tests
         public void TestCreateLabeledNodeFireAndForget()
         {
             // Create a node with a label
-            ResultSet resultSet = _api.Query("social", "CREATE (:human{name:'danny',age:12})");
+            ResultSet resultSet = _api.Query("CREATE (:human{name:'danny',age:12})");
             Assert.Empty(resultSet);
             Assert.Equal("1", resultSet.Statistics.GetStringValue(Label.NodesCreated));
             Assert.Equal("2", resultSet.Statistics.GetStringValue(Label.PropertiesSet));
@@ -76,11 +78,11 @@ namespace NFalkorDB.Tests
         public void TestConnectNodes()
         {
             // Create both source and destination nodes
-            Assert.NotNull(_api.Query("social", "CREATE (:person{name:'roi',age:32})"));
-            Assert.NotNull(_api.Query("social", "CREATE (:person{name:'amit',age:30})"));
+            Assert.NotNull(_api.Query("CREATE (:person{name:'roi',age:32})"));
+            Assert.NotNull(_api.Query("CREATE (:person{name:'amit',age:30})"));
 
             // Connect source and destination nodes.
-            ResultSet resultSet = _api.Query("social", "MATCH (a:person), (b:person) WHERE (a.name = 'roi' AND b.name='amit')  CREATE (a)-[:knows]->(a)");
+            ResultSet resultSet = _api.Query("MATCH (a:person), (b:person) WHERE (a.name = 'roi' AND b.name='amit')  CREATE (a)-[:knows]->(a)");
 
             Assert.Empty(resultSet);
             Assert.Null(resultSet.Statistics.GetStringValue(Label.NodesCreated));
@@ -93,9 +95,9 @@ namespace NFalkorDB.Tests
         [Fact]
         public void TestDeleteNodes()
         {
-            Assert.NotNull(_api.Query("social", "CREATE (:person{name:'roi',age:32})"));
-            Assert.NotNull(_api.Query("social", "CREATE (:person{name:'amit',age:30})"));
-            ResultSet deleteResult = _api.Query("social", "MATCH (a:person) WHERE (a.name = 'roi') DELETE a");
+            Assert.NotNull(_api.Query("CREATE (:person{name:'roi',age:32})"));
+            Assert.NotNull(_api.Query("CREATE (:person{name:'amit',age:30})"));
+            ResultSet deleteResult = _api.Query("MATCH (a:person) WHERE (a.name = 'roi') DELETE a");
 
             Assert.Empty(deleteResult);
             Assert.Null(deleteResult.Statistics.GetStringValue(Label.NodesCreated));
@@ -105,9 +107,9 @@ namespace NFalkorDB.Tests
             Assert.Equal(1, deleteResult.Statistics.NodesDeleted);
             Assert.NotNull(deleteResult.Statistics.GetStringValue(Label.QueryInternalExecutionTime));
 
-            Assert.NotNull(_api.Query("social", "CREATE (:person{name:'roi',age:32})"));
-            Assert.NotNull(_api.Query("social", "MATCH (a:person), (b:person) WHERE (a.name = 'roi' AND b.name='amit')  CREATE (a)-[:knows]->(a)"));
-            deleteResult = _api.Query("social", "MATCH (a:person) WHERE (a.name = 'roi') DELETE a");
+            Assert.NotNull(_api.Query("CREATE (:person{name:'roi',age:32})"));
+            Assert.NotNull(_api.Query("MATCH (a:person), (b:person) WHERE (a.name = 'roi' AND b.name='amit')  CREATE (a)-[:knows]->(a)"));
+            deleteResult = _api.Query("MATCH (a:person) WHERE (a.name = 'roi') DELETE a");
 
             Assert.Empty(deleteResult);
             Assert.Null(deleteResult.Statistics.GetStringValue(Label.NodesCreated));
@@ -123,12 +125,12 @@ namespace NFalkorDB.Tests
         [Fact]
         public void TestDeleteRelationship()
         {
-            var graphName = $"social_{MethodBase.GetCurrentMethod()}";
+            var graph = new FalkorDB(_muxr.GetDatabase(0)).SelectGraph($"social_{MethodBase.GetCurrentMethod()}");
 
-            Assert.NotNull(_api.Query(graphName, "CREATE (:person{name:'roi',age:32})"));
-            Assert.NotNull(_api.Query(graphName, "CREATE (:person{name:'amit',age:30})"));
-            Assert.NotNull(_api.Query(graphName, "MATCH (a:person), (b:person) WHERE (a.name = 'roi' AND b.name='amit')  CREATE (a)-[:knows]->(a)"));
-            ResultSet deleteResult = _api.Query(graphName, "MATCH (a:person)-[e]->() WHERE (a.name = 'roi') DELETE e");
+            Assert.NotNull(graph.Query("CREATE (:person{name:'roi',age:32})"));
+            Assert.NotNull(graph.Query("CREATE (:person{name:'amit',age:30})"));
+            Assert.NotNull(graph.Query("MATCH (a:person), (b:person) WHERE (a.name = 'roi' AND b.name='amit')  CREATE (a)-[:knows]->(a)"));
+            ResultSet deleteResult = graph.Query("MATCH (a:person)-[e]->() WHERE (a.name = 'roi') DELETE e");
 
             Assert.Empty(deleteResult);
             Assert.Null(deleteResult.Statistics.GetStringValue(Label.NodesCreated));
@@ -145,24 +147,24 @@ namespace NFalkorDB.Tests
         public void TestIndex()
         {
             // Create both source and destination nodes
-            Assert.NotNull(_api.Query("social", "CREATE (:person{name:'roi',age:32})"));
+            Assert.NotNull(_api.Query("CREATE (:person{name:'roi',age:32})"));
 
-            ResultSet createIndexResult = _api.Query("social", "CREATE INDEX ON :person(age)");
+            ResultSet createIndexResult = _api.Query("CREATE INDEX ON :person(age)");
             Assert.Empty(createIndexResult);
             Assert.Equal(1, createIndexResult.Statistics.IndicesCreated);
 
             // since RediSearch as index, those action are allowed
-            ResultSet createNonExistingIndexResult = _api.Query("social", "CREATE INDEX ON :person(age1)");
+            ResultSet createNonExistingIndexResult = _api.Query("CREATE INDEX ON :person(age1)");
             Assert.Empty(createNonExistingIndexResult);
             Assert.NotNull(createNonExistingIndexResult.Statistics.GetStringValue(Label.IndicesCreated));
             Assert.Equal(1, createNonExistingIndexResult.Statistics.IndicesCreated);
 
             var exception = Assert.Throws<RedisServerException>(() => 
-                _api.Query("social", "CREATE INDEX ON :person(age)")
+                _api.Query("CREATE INDEX ON :person(age)")
             );
             Assert.Contains("Attribute 'age' is already indexed", exception.Message);
 
-            ResultSet deleteExistingIndexResult = _api.Query("social", "DROP INDEX ON :person(age)");
+            ResultSet deleteExistingIndexResult = _api.Query("DROP INDEX ON :person(age)");
             Assert.Empty(deleteExistingIndexResult);
             Assert.Equal(1, deleteExistingIndexResult.Statistics.IndicesDeleted);
         }
@@ -170,11 +172,11 @@ namespace NFalkorDB.Tests
         [Fact]
         public void TestHeader()
         {
-            Assert.NotNull(_api.Query("social", "CREATE (:person{name:'roi',age:32})"));
-            Assert.NotNull(_api.Query("social", "CREATE (:person{name:'amit',age:30})"));
-            Assert.NotNull(_api.Query("social", "MATCH (a:person), (b:person) WHERE (a.name = 'roi' AND b.name='amit')  CREATE (a)-[:knows]->(b)"));
+            Assert.NotNull(_api.Query("CREATE (:person{name:'roi',age:32})"));
+            Assert.NotNull(_api.Query("CREATE (:person{name:'amit',age:30})"));
+            Assert.NotNull(_api.Query("MATCH (a:person), (b:person) WHERE (a.name = 'roi' AND b.name='amit')  CREATE (a)-[:knows]->(b)"));
 
-            ResultSet queryResult = _api.Query("social", "MATCH (a:person)-[r:knows]->(b:person) RETURN a,r, a.age");
+            ResultSet queryResult = _api.Query("MATCH (a:person)-[r:knows]->(b:person) RETURN a,r, a.age");
 
             Assert.NotNull(queryResult.Header);
             Header header = queryResult.Header;
@@ -247,11 +249,11 @@ namespace NFalkorDB.Tests
                 {"doubleValue", doubleValue}
             };
 
-            Assert.NotNull(_api.Query("social", "CREATE (:person{name:$name,age:$age, doubleValue:$doubleValue, boolValue:$boolValue, nullValue:null})", parms));
-            Assert.NotNull(_api.Query("social", "CREATE (:person{name:'amit',age:30})"));
-            Assert.NotNull(_api.Query("social", "MATCH (a:person), (b:person) WHERE (a.name = 'roi' AND b.name='amit') CREATE (a)-[:knows{place:'TLV', since:2000,doubleValue:3.14, boolValue:false, nullValue:null}]->(b)"));
+            Assert.NotNull(_api.Query("CREATE (:person{name:$name,age:$age, doubleValue:$doubleValue, boolValue:$boolValue, nullValue:null})", parms));
+            Assert.NotNull(_api.Query("CREATE (:person{name:'amit',age:30})"));
+            Assert.NotNull(_api.Query("MATCH (a:person), (b:person) WHERE (a.name = 'roi' AND b.name='amit') CREATE (a)-[:knows{place:'TLV', since:2000,doubleValue:3.14, boolValue:false, nullValue:null}]->(b)"));
 
-            ResultSet resultSet = _api.Query("social", "MATCH (a:person)-[r:knows]->(b:person) RETURN a,r, a.name, a.age, a.doubleValue, a.boolValue, a.nullValue, r.place, r.since, r.doubleValue, r.boolValue, r.nullValue");
+            ResultSet resultSet = _api.Query("MATCH (a:person)-[r:knows]->(b:person) RETURN a,r, a.name, a.age, a.doubleValue, a.boolValue, a.nullValue, r.place, r.since, r.doubleValue, r.boolValue, r.nullValue");
 
             Assert.NotNull(resultSet);
 
@@ -297,22 +299,22 @@ namespace NFalkorDB.Tests
         [Fact]
         public void TinyTestMultiThread()
         {
-            ResultSet resultSet = _api.Query("social", "CREATE ({name:'roi',age:32})");
+            ResultSet resultSet = _api.Query("CREATE ({name:'roi',age:32})");
 
-            _api.Query("social", "MATCH (a:person) RETURN a");
+            _api.Query("MATCH (a:person) RETURN a");
 
             for (int i = 0; i < 10000; i++)
             {
-                var resultSets = Enumerable.Range(0, 16).AsParallel().Select(x => _api.Query("social", "MATCH (a:person) RETURN a"));
+                var resultSets = Enumerable.Range(0, 16).AsParallel().Select(x => _api.Query("MATCH (a:person) RETURN a"));
             }
         }
 
         [Fact]
         public void TestMultiThread()
         {
-            Assert.NotNull(_api.Query("social", "CREATE (:person {name:'roi', age:32})-[:knows]->(:person {name:'amit',age:30}) "));
+            Assert.NotNull(_api.Query("CREATE (:person {name:'roi', age:32})-[:knows]->(:person {name:'amit',age:30}) "));
 
-            List<ResultSet> resultSets = Enumerable.Range(0, 16).AsParallel().Select(x => _api.Query("social", "MATCH (a:person)-[r:knows]->(b:person) RETURN a,r, a.age")).ToList();
+            List<ResultSet> resultSets = Enumerable.Range(0, 16).AsParallel().Select(x => _api.Query("MATCH (a:person)-[r:knows]->(b:person) RETURN a,r, a.age")).ToList();
 
             Property nameProperty = new Property("name", "roi");
             Property ageProperty = new Property("age", 32L);
@@ -359,11 +361,11 @@ namespace NFalkorDB.Tests
             expectedEdge.Destination = 3;
             expectedEdge.Id = 1;
 
-            Assert.NotNull(_api.Query("social", "CREATE (:worker{lastName:'a'})"));
-            Assert.NotNull(_api.Query("social", "CREATE (:worker{lastName:'b'})"));
-            Assert.NotNull(_api.Query("social", "MATCH (a:worker), (b:worker) WHERE (a.lastName = 'a' AND b.lastName='b')  CREATE (a)-[:worksWith]->(b)"));
+            Assert.NotNull(_api.Query("CREATE (:worker{lastName:'a'})"));
+            Assert.NotNull(_api.Query("CREATE (:worker{lastName:'b'})"));
+            Assert.NotNull(_api.Query("MATCH (a:worker), (b:worker) WHERE (a.lastName = 'a' AND b.lastName='b')  CREATE (a)-[:worksWith]->(b)"));
 
-            resultSets = Enumerable.Range(0, 16).AsParallel().Select(x => _api.Query("social", "MATCH (a:worker)-[r:worksWith]->(b:worker) RETURN a,r")).ToList();
+            resultSets = Enumerable.Range(0, 16).AsParallel().Select(x => _api.Query("MATCH (a:worker)-[r:worksWith]->(b:worker) RETURN a,r")).ToList();
 
             foreach (ResultSet resultSet in resultSets)
             {
@@ -384,11 +386,11 @@ namespace NFalkorDB.Tests
         [Fact]
         public void TestAdditionToProcedures()
         {
-            Assert.NotNull(_api.Query("social", "CREATE (:person{name:'roi',age:32})"));
-            Assert.NotNull(_api.Query("social", "CREATE (:person{name:'amit',age:30})"));
-            Assert.NotNull(_api.Query("social", "MATCH (a:person), (b:person) WHERE (a.name = 'roi' AND b.name='amit')  CREATE (a)-[:knows]->(b)"));
+            Assert.NotNull(_api.Query("CREATE (:person{name:'roi',age:32})"));
+            Assert.NotNull(_api.Query("CREATE (:person{name:'amit',age:30})"));
+            Assert.NotNull(_api.Query("MATCH (a:person), (b:person) WHERE (a.name = 'roi' AND b.name='amit')  CREATE (a)-[:knows]->(b)"));
 
-            List<ResultSet> resultSets = Enumerable.Range(0, 16).AsParallel().Select(x => _api.Query("social", "MATCH (a:person)-[r:knows]->(b:person) RETURN a,r")).ToList();
+            List<ResultSet> resultSets = Enumerable.Range(0, 16).AsParallel().Select(x => _api.Query("MATCH (a:person)-[r:knows]->(b:person) RETURN a,r")).ToList();
 
             //expected objects init
             Property nameProperty = new Property("name", "roi");
@@ -407,7 +409,7 @@ namespace NFalkorDB.Tests
             expectedEdge.Destination = 1;
             expectedEdge.RelationshipType = "knows";
 
-            ResultSet resultSet = _api.Query("social", "MATCH (a:person)-[r:knows]->(b:person) RETURN a,r");
+            ResultSet resultSet = _api.Query("MATCH (a:person)-[r:knows]->(b:person) RETURN a,r");
             Assert.NotNull(resultSet.Header);
             Header header = resultSet.Header;
             List<String> schemaNames = header.SchemaNames;
@@ -432,10 +434,10 @@ namespace NFalkorDB.Tests
             expectedEdge.Source = 2;
             expectedEdge.Destination = 3;
             expectedEdge.Id = 1;
-            Assert.NotNull(_api.Query("social", "CREATE (:worker{lastName:'a'})"));
-            Assert.NotNull(_api.Query("social", "CREATE (:worker{lastName:'b'})"));
-            Assert.NotNull(_api.Query("social", "MATCH (a:worker), (b:worker) WHERE (a.lastName = 'a' AND b.lastName='b')  CREATE (a)-[:worksWith]->(b)"));
-            resultSet = _api.Query("social", "MATCH (a:worker)-[r:worksWith]->(b:worker) RETURN a,r");
+            Assert.NotNull(_api.Query("CREATE (:worker{lastName:'a'})"));
+            Assert.NotNull(_api.Query("CREATE (:worker{lastName:'b'})"));
+            Assert.NotNull(_api.Query("MATCH (a:worker), (b:worker) WHERE (a.lastName = 'a' AND b.lastName='b')  CREATE (a)-[:worksWith]->(b)"));
+            resultSet = _api.Query("MATCH (a:worker)-[r:worksWith]->(b:worker) RETURN a,r");
             Assert.NotNull(resultSet.Header);
             header = resultSet.Header;
             schemaNames = header.SchemaNames;
@@ -452,8 +454,8 @@ namespace NFalkorDB.Tests
         [Fact]
         public void TestEscapedQuery()
         {
-            Assert.NotNull(_api.Query("social", "MATCH (n) where n.s1='S\"\\'' RETURN n"));
-            Assert.NotNull(_api.Query("social", "MATCH (n) where n.s1='S\"\\'' RETURN n"));
+            Assert.NotNull(_api.Query("MATCH (n) where n.s1='S\"\\'' RETURN n"));
+            Assert.NotNull(_api.Query("MATCH (n) where n.s1='S\"\\'' RETURN n"));
         }
 
         [Fact]
@@ -463,20 +465,20 @@ namespace NFalkorDB.Tests
             params1.Put("s1", "S\"'");
             params1.Put("s2", "S'\"");
             
-            Assert.NotNull(_api.Query("social", "CREATE (:escaped{s1:$s1,s2:$s2})", params1));
+            Assert.NotNull(_api.Query("CREATE (:escaped{s1:$s1,s2:$s2})", params1));
 
             var params2 = new Dictionary<string, object>();
             params2.Put("s1", "S\"'");
             params2.Put("s2", "S'\"");
 
-            Assert.NotNull(_api.Query("social", "MATCH (n) where n.s1=$s1 and n.s2=$s2 RETURN n", params2));
+            Assert.NotNull(_api.Query("MATCH (n) where n.s1=$s1 and n.s2=$s2 RETURN n", params2));
         }
 
         [Theory]
         [MemberData(nameof(EscapedCypherParameters))]
         public void TestEscapedCypherParameters(Dictionary<string, object> parameters)
         {
-            Assert.NotNull(_api.Query("whatever", "CREATE (a:Test {SomeString: $SomeString})", parameters));
+            Assert.NotNull(_whatever.Query("CREATE (a:Test {SomeString: $SomeString})", parameters));
         }
 
         public static readonly object[][] EscapedCypherParameters =
@@ -484,97 +486,6 @@ namespace NFalkorDB.Tests
             new object[] {new Dictionary<string, object> {{"SomeString", "dsf\"dsfdss"}}},
             [new Dictionary<string, object> {{"SomeString", "dsfdsfdss\"#"}}],
         ];
-
-        [Fact]
-        public void TestMultiExec()
-        {
-            var transaction = _api.Multi();
-
-            // transaction.SetAsync("x", "1");
-            transaction.QueryAsync("social", "CREATE (:Person {name:'a'})");
-            transaction.QueryAsync("g", "CREATE (:Person {name:'a'})");
-            // transaction.IncrAsync("x");
-            // transaction.GetAsync("x");
-            transaction.QueryAsync("social", "MATCH (n:Person) RETURN n");
-            transaction.DeleteGraphAsync("g");
-            transaction.CallProcedureAsync("social", "db.labels");
-
-            var results = transaction.Exec();
-
-            // Skipping Redis SET command assetions...
-
-            // Redis Graph command
-            var resultSet = results[0];
-            Assert.Equal(1, resultSet.Statistics.NodesCreated);
-            Assert.Equal(1, resultSet.Statistics.PropertiesSet);
-
-            resultSet = results[1];
-            Assert.Equal(1, resultSet.Statistics.NodesCreated);
-            Assert.Equal(1, resultSet.Statistics.PropertiesSet);
-
-            // Skipping Redis INCR command assertions...
-
-            // Skipping Redis GET command assertions...
-
-            // Graph Query Result
-            resultSet = results[2];
-            Assert.NotNull(resultSet.Header);
-
-            var header = resultSet.Header;
-
-            var schemaNames = header.SchemaNames;
-
-            Assert.NotNull(schemaNames);
-
-            Assert.Single(schemaNames);
-
-            Assert.Equal("n", schemaNames[0]);
-
-            var nameProperty = new Property("name", "a");
-
-            var expectedNode = new Node();
-            expectedNode.Id = 0;
-            expectedNode.AddLabel("Person");
-            expectedNode.AddProperty(nameProperty);
-
-            // See that the result were pulled from the right graph.
-
-            Assert.Single(resultSet);
-
-            var record = resultSet.First();
-            Assert.Equal(new List<string> {"n"}, record.Keys);
-            Assert.Equal(expectedNode, record.GetValue<Node>("n"));
-
-            resultSet = results[4];
-
-            Assert.NotNull(resultSet.Header);
-
-            schemaNames = header.SchemaNames;
-
-            Assert.NotNull(schemaNames);
-
-            Assert.Single(schemaNames);
-
-            Assert.Equal("n", schemaNames[0]);
-
-            Assert.Single(resultSet);
-
-            record = resultSet.First();
-
-            Assert.Equal(new List<string> {"label"}, record.Keys);
-            Assert.Equal("Person", record.GetValue<string>("label"));
-        }
-
-        /*
-
-        Since by default all commands executed by StackExchange.Redis travel through the same connection
-        we're going to skip the following "contexted" tests:
-
-        - testContextedAPI
-        - testWriteTransactionWatch
-        - testReadTransactionWatch
-
-        */
 
         [Fact]
         public void TestArraySupport()
@@ -599,12 +510,12 @@ namespace NFalkorDB.Tests
             expectedBNode.AddProperty(bAgeProperty);
             expectedBNode.AddProperty(bListProperty);
 
-            Assert.NotNull(_api.Query("social", "CREATE (:person{name:'a',age:32,array:[0,1,2]})"));
-            Assert.NotNull(_api.Query("social", "CREATE (:person{name:'b',age:30,array:[3,4,5]})"));
+            Assert.NotNull(_api.Query("CREATE (:person{name:'a',age:32,array:[0,1,2]})"));
+            Assert.NotNull(_api.Query("CREATE (:person{name:'b',age:30,array:[3,4,5]})"));
 
             // test array
 
-            var resultSet = _api.Query("social", "WITH [0,1,2] as x return x");
+            var resultSet = _api.Query("WITH [0,1,2] as x return x");
 
             // check header
             Assert.NotNull(resultSet.Header);
@@ -627,7 +538,7 @@ namespace NFalkorDB.Tests
             Assert.Equal([0L, 1L, 2L], x);
 
             // test collect
-            resultSet = _api.Query("social", "MATCH(n) return collect(n) as x");
+            resultSet = _api.Query("MATCH(n) return collect(n) as x");
 
             Assert.NotNull(resultSet.Header);
             header = resultSet.Header;
@@ -650,7 +561,7 @@ namespace NFalkorDB.Tests
             Assert.Contains(expectedBNode, x);
 
             // test unwind
-            resultSet = _api.Query("social", "unwind([0,1,2]) as x return x");
+            resultSet = _api.Query("unwind([0,1,2]) as x return x");
 
             Assert.NotNull(resultSet.Header);
             header = resultSet.Header;
@@ -711,9 +622,9 @@ namespace NFalkorDB.Tests
             expectedPaths.Add(path12);
             expectedPaths.Add(path02);
 
-            _api.Query("social", "CREATE (:L1)-[:R1]->(:L1)-[:R1]->(:L1)");
+            _api.Query("CREATE (:L1)-[:R1]->(:L1)-[:R1]->(:L1)");
 
-            var resultSet = _api.Query("social", "MATCH p = (:L1)-[:R1*]->(:L1) RETURN p");
+            var resultSet = _api.Query("MATCH p = (:L1)-[:R1*]->(:L1) RETURN p");
 
             Assert.Equal(expectedPaths.Count, resultSet.Count);
 
@@ -733,7 +644,7 @@ namespace NFalkorDB.Tests
 
             object expected = parameters;
             param.Put("param", expected);
-            ResultSet resultSet = _api.Query("social", "RETURN $param", param);
+            ResultSet resultSet = _api.Query("RETURN $param", param);
             Assert.Single(resultSet);
             Record r = resultSet.First();
             object o = r.GetValue<object>(0);
@@ -745,7 +656,7 @@ namespace NFalkorDB.Tests
         public void TestParametersReadOnly()
         {
             // Dummy call to create the empty graph
-            _api.Query("social", "RETURN 1");
+            _api.Query("RETURN 1");
 
             var parameters = new object[]
             {
@@ -765,7 +676,7 @@ namespace NFalkorDB.Tests
             {
                 var param = parameters[i];
                 paramDict.Put("param", param);
-                ResultSet resultSetRo = _api.GraphReadOnlyQuery("social", "RETURN $param", paramDict);
+                ResultSet resultSetRo = _api.GraphReadOnlyQuery("RETURN $param", paramDict);
                 Assert.Single(resultSetRo);
 
                 var oRo = resultSetRo.First().GetValue<object>(0);
@@ -779,15 +690,15 @@ namespace NFalkorDB.Tests
         public void TestNullGraphEntities()
         {
             // Create two nodes connected by a single outgoing edge.
-            Assert.NotNull(_api.Query("social", "CREATE (:L)-[:E]->(:L2)"));
+            Assert.NotNull(_api.Query("CREATE (:L)-[:E]->(:L2)"));
 
             // Test a query that produces 1 record with 3 null values.
-            ResultSet resultSet = _api.Query("social", "OPTIONAL MATCH (a:NONEXISTENT)-[e]->(b) RETURN a, e, b");
+            ResultSet resultSet = _api.Query("OPTIONAL MATCH (a:NONEXISTENT)-[e]->(b) RETURN a, e, b");
             Assert.Single(resultSet);
             Assert.Equal(new object[] {null, null, null}, resultSet.First().Values);
 
             // Test a query that produces 2 records, with 2 null values in the second.
-            resultSet = _api.Query("social", "MATCH (a) OPTIONAL MATCH (a)-[e]->(b) RETURN a, e, b ORDER BY ID(a)");
+            resultSet = _api.Query("MATCH (a) OPTIONAL MATCH (a)-[e]->(b) RETURN a, e, b ORDER BY ID(a)");
             Assert.Equal(2, resultSet.Count);
 
             var record = resultSet.First();
@@ -806,7 +717,7 @@ namespace NFalkorDB.Tests
 
             // Test a query that produces 2 records, the first containing a path and the
             // second containing a null value.
-            resultSet = _api.Query("social", "MATCH (a) OPTIONAL MATCH p = (a)-[e]->(b) RETURN p");
+            resultSet = _api.Query("MATCH (a) OPTIONAL MATCH p = (a)-[e]->(b) RETURN p");
             Assert.Equal(2, resultSet.Count);
 
             record = resultSet.First();
@@ -824,7 +735,7 @@ namespace NFalkorDB.Tests
             long value = 1L << 40;
             var parameters = new Dictionary<string, object>();
             parameters.Put("val", value);
-            ResultSet resultSet = _api.Query("social", "CREATE (n {val:$val}) RETURN n.val", parameters);
+            ResultSet resultSet = _api.Query("CREATE (n {val:$val}) RETURN n.val", parameters);
 
             Assert.Single(resultSet);
 
@@ -834,13 +745,13 @@ namespace NFalkorDB.Tests
         [Fact]
         public void TestCachedExecution()
         {
-            _api.Query("social", "CREATE (:N {val:1}), (:N {val:2})");
+            _api.Query("CREATE (:N {val:1}), (:N {val:2})");
 
             // First time should not be loaded from execution cache
             var parameters = new Dictionary<string, object>();
             parameters.Put("val", 1L);
 
-            var resultSet = _api.Query("social", "MATCH (n:N {val:$val}) RETURN n.val", parameters);
+            var resultSet = _api.Query("MATCH (n:N {val:$val}) RETURN n.val", parameters);
 
             Assert.Single(resultSet);
             Assert.Equal(parameters["val"], resultSet.First().Values[0]);
@@ -850,7 +761,7 @@ namespace NFalkorDB.Tests
             // from cache at least once
             for (int i = 0; i < 64; i++)
             {
-                resultSet = _api.Query("social", "MATCH (n:N {val:$val}) RETURN n.val", parameters);
+                resultSet = _api.Query("MATCH (n:N {val:$val}) RETURN n.val", parameters);
             }
 
             Assert.Single(resultSet);
@@ -877,7 +788,7 @@ namespace NFalkorDB.Tests
             f.Put("x", (long)1);
             f.Put("y", (long)2);
             expected.Put("f", f);
-            ResultSet res = _api.Query("social", "RETURN {a:1, b:'str', c:NULL, d:[1,2,3], e:True, f:{x:1, y:2}}");
+            ResultSet res = _api.Query("RETURN {a:1, b:'str', c:NULL, d:[1,2,3], e:True, f:{x:1, y:2}}");
             Assert.Single(res);
             // Record r = res.iterator().next();
             var something = res.First().Values[0];
@@ -887,7 +798,7 @@ namespace NFalkorDB.Tests
 
         [Fact]
         public void TestGeoPointLatLon() {
-            var rs = _api.Query("social", "CREATE (:restaurant"
+            var rs = _api.Query("CREATE (:restaurant"
                                                        + " {location: point({latitude:30.27822306, longitude:-97.75134723})})");
             Assert.Equal(1, rs.Statistics.NodesCreated);
             Assert.Equal(1, rs.Statistics.PropertiesSet);
@@ -897,7 +808,7 @@ namespace NFalkorDB.Tests
         
         [Fact]
         public void TestGeoPointLonLat() {
-            var rs = _api.Query("social", "CREATE (:restaurant"
+            var rs = _api.Query("CREATE (:restaurant"
                                                        + " {location: point({longitude:-97.75134723, latitude:30.27822306})})");
             Assert.Equal(1, rs.Statistics.NodesCreated);
             Assert.Equal(1, rs.Statistics.PropertiesSet);
@@ -907,7 +818,7 @@ namespace NFalkorDB.Tests
         
         private void AssertTestGeoPoint()
         {
-            var results = _api.Query("social", "MATCH (restaurant) RETURN restaurant");
+            var results = _api.Query("MATCH (restaurant) RETURN restaurant");
             
             Assert.Single(results);
         
@@ -923,7 +834,7 @@ namespace NFalkorDB.Tests
 
         [Fact]
         public void TimeoutArgument() {
-            var rs = _api.Query("social", "UNWIND range(0,100) AS x WITH x AS x WHERE x = 100 RETURN x", timeout: 1L);
+            var rs = _api.Query("UNWIND range(0,100) AS x WITH x AS x WHERE x = 100 RETURN x", timeout: 1L);
             
             Assert.Single(rs);
         
@@ -935,12 +846,12 @@ namespace NFalkorDB.Tests
         [Fact]
         public void TestCachedExecutionReadOnly()
         {
-            _api.Query("social", "CREATE (:N {val:1}), (:N {val:2})");
+            _api.Query("CREATE (:N {val:1}), (:N {val:2})");
 
             // First time should not be loaded from execution cache
             var parameters = new Dictionary<string, object>();
             parameters.Put("val", 1L);
-            var resultSet = _api.GraphReadOnlyQuery("social", "MATCH (n:N {val:$val}) RETURN n.val", parameters);
+            var resultSet = _api.GraphReadOnlyQuery("MATCH (n:N {val:$val}) RETURN n.val", parameters);
 
             Assert.Single(resultSet);
             Assert.Equal(parameters["val"], resultSet.First().Values[0]);
@@ -950,7 +861,7 @@ namespace NFalkorDB.Tests
             // from cache at least once
             for (int i = 0; i < 64; i++)
             {
-                resultSet = _api.GraphReadOnlyQuery("social", "MATCH (n:N {val:$val}) RETURN n.val", parameters);
+                resultSet = _api.GraphReadOnlyQuery("MATCH (n:N {val:$val}) RETURN n.val", parameters);
             }
 
             Assert.Single(resultSet);
@@ -962,8 +873,8 @@ namespace NFalkorDB.Tests
         [Fact]
         public void TestSimpleReadOnly()
         {
-            _api.Query("social", "CREATE (:person{name:'filipe',age:30})");
-            var rsRo = _api.GraphReadOnlyQuery("social", "MATCH (a:person) WHERE (a.name = 'filipe') RETURN a.age");
+            _api.Query("CREATE (:person{name:'filipe',age:30})");
+            var rsRo = _api.GraphReadOnlyQuery("MATCH (a:person) WHERE (a.name = 'filipe') RETURN a.age");
             Assert.Single(rsRo);
             Assert.Equal(30L, rsRo.First().GetValue<long>(0));
         }

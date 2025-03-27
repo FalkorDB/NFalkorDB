@@ -6,7 +6,7 @@ namespace NFalkorDB.Tests
     public class NFalkorDBErrorTest : BaseTest
     {
         private ConnectionMultiplexer _muxr;
-        private FalkorDB _api;
+        private Graph _api;
 
         public NFalkorDBErrorTest() : base() { }
 
@@ -14,14 +14,14 @@ namespace NFalkorDB.Tests
         {
             _muxr = ConnectionMultiplexer.Connect(RedisConnectionString);
 
-            _api = new FalkorDB(_muxr.GetDatabase(0));
+            _api = new FalkorDB(_muxr.GetDatabase(0)).SelectGraph("social");
 
-            Assert.NotNull(_api.Query("social", "CREATE (:person{mixed_prop: 'strval'}), (:person{mixed_prop: 50})"));
+            Assert.NotNull(_api.Query("CREATE (:person{mixed_prop: 'strval'}), (:person{mixed_prop: 50})"));
         }
 
         protected override void AfterTest()
         {
-            _api.DeleteGraph("social");
+            _api.Delete();
         }
 
         // TODO: Figure out what to do about the "compile time" exceptions. SE.Redis is just throwing a RedisServerException
