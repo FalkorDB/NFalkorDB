@@ -1,73 +1,47 @@
 using System.Collections.Generic;
+using System.Linq;
 using Xunit;
 
-namespace NFalkorDB.Tests
+namespace NFalkorDB.Tests;
+
+public class IDictionaryExtensionsTests
 {
-    public class IDictionaryExtensionsTests
+    public class SequenceEqualCan
     {
-        public class PutIfAbsentWill
+        [Fact]
+        public void DetermineIfTwoDictionariesAreEqual()
         {
-            [Fact]
-            public void PlaceAKeyInTheDictionaryIfItDoesntAlreadyExist()
+            var testDict1 = new Dictionary<string, string>
             {
-                var test = new Dictionary<string, string>();
+                { "hello", "world" },
+                { "goodnight", "moon" }
+            };
 
-                test.PutIfAbsent("hello", "world");
-
-                Assert.Equal("world", test["hello"]);
-            }
-
-            [Fact]
-            public void NotPlaceAKeyInTheDictionaryIfItDoesntAlreadyExist()
+            var testDict2 = new Dictionary<string, string>
             {
-                var test = new Dictionary<string, string>
-                {
-                    { "goodnight", "moon" }
-                };
+                { "hello", "world" },
+                { "goodnight", "moon" }
+            };    
 
-                test.PutIfAbsent("goodnight", "world");
-
-                Assert.Equal("moon", test["goodnight"]);
-            }
+            Assert.True(testDict1.SequenceEqual(testDict2));            
         }
 
-        public class SequenceEqualCan
+        [Fact]
+        public void DetermineIfTwoDictionariesArentEqual()
         {
-            [Fact]
-            public void DetermineIfTwoDictionariesAreEqual()
+            var testDict1 = new Dictionary<string, string>
             {
-                var testDict1 = new Dictionary<string, string>
-                {
-                    { "hello", "world" },
-                    { "goodnight", "moon" }
-                };
+                { "hello", "world" },
+                { "goodnight", "moon" }
+            };
 
-                var testDict2 = new Dictionary<string, string>
-                {
-                    { "hello", "world" },
-                    { "goodnight", "moon" }
-                };    
-
-                Assert.True(testDict1.SequenceEqual(testDict2));            
-            }
-
-            [Fact]
-            public void DetermineIfTwoDictionariesArentEqual()
+            var testDict2 = new Dictionary<string, string>
             {
-                var testDict1 = new Dictionary<string, string>
-                {
-                    { "hello", "world" },
-                    { "goodnight", "moon" }
-                };
+                { "hello", "moon" },
+                { "goodnight", "world" }
+            };    
 
-                var testDict2 = new Dictionary<string, string>
-                {
-                    { "hello", "moon" },
-                    { "goodnight", "world" }
-                };    
-
-                Assert.False(testDict1.SequenceEqual(testDict2)); 
-            }
+            Assert.False(testDict1.SequenceEqual(testDict2)); 
         }
     }
 }

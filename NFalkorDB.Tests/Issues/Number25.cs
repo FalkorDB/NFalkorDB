@@ -9,8 +9,8 @@ public class Number25 : BaseTest
     private ConnectionMultiplexer _readWriteMultiplexer;
     private ConnectionMultiplexer _readonlyMultiplexer;
     
-    private FalkorDB _readonlyApi;
-    private FalkorDB _readWriteApi;
+    private Graph _readonlyApi;
+    private Graph _readWriteApi;
     
     protected override void BeforeTest()
     {
@@ -19,18 +19,18 @@ public class Number25 : BaseTest
         _readWriteMultiplexer = ConnectionMultiplexer.Connect("tombaserver.local:10000,tombaserver.local:10001");
         
         // Setup FalkorDB API...
-        _readonlyApi = new FalkorDB(_readonlyMultiplexer.GetDatabase(0));
-        _readWriteApi = new FalkorDB(_readWriteMultiplexer.GetDatabase(0));
+        _readonlyApi = new FalkorDB(_readonlyMultiplexer.GetDatabase(0)).SelectGraph("issue25");
+        _readWriteApi = new FalkorDB(_readWriteMultiplexer.GetDatabase(0)).SelectGraph("issue25");
         
         // Setup the data.
-        _readWriteApi.Query("issue25", "CREATE (:Person {username: 'John', age: 20})");
-        _readWriteApi.Query("issue25", "CREATE (:Person {username: 'Peter', age: 23})");
-        _readWriteApi.Query("issue25", "CREATE (:Person {username: 'Steven', age: 30})");        
+        _readWriteApi.Query("CREATE (:Person {username: 'John', age: 20})");
+        _readWriteApi.Query("CREATE (:Person {username: 'Peter', age: 23})");
+        _readWriteApi.Query("CREATE (:Person {username: 'Steven', age: 30})");        
     }
 
     protected override void AfterTest()
     {
-        _readWriteApi.DeleteGraph("issue25");
+        _readWriteApi.Delete();
         _readWriteMultiplexer.Dispose();
 
         _readonlyMultiplexer.Dispose();
@@ -42,7 +42,7 @@ public class Number25 : BaseTest
         // Read from the read-only replica
         string readQuery = "MATCH x=(p:Person) RETURN nodes(x) as nodes";
 
-        ResultSet records = _readonlyApi.GraphReadOnlyQuery("issue25", readQuery);
+        ResultSet records = _readonlyApi.ReadOnlyQuery(readQuery);
 
         var result = new List<Person>();
 

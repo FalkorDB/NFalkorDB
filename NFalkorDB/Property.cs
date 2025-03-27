@@ -1,107 +1,106 @@
 using System.Collections;
 using System.Text;
 
-namespace NFalkorDB
+namespace NFalkorDB;
+
+/// <summary>
+/// A graph entity property.
+/// </summary>
+public class Property
 {
     /// <summary>
-    /// A graph entity property.
+    /// Name of the property.
     /// </summary>
-    public class Property
+    /// <value></value>
+    public string Name { get; set; }
+
+    /// <summary>
+    /// Value of the property.
+    /// </summary>
+    /// <value></value>
+    public object Value { get; set; }
+
+    internal Property()
+    { }
+
+    /// <summary>
+    /// Create a property by specifying a name and a value.
+    /// </summary>
+    /// <param name="name"></param>
+    /// <param name="value"></param>
+    public Property(string name, object value)
     {
-        /// <summary>
-        /// Name of the property.
-        /// </summary>
-        /// <value></value>
-        public string Name { get; set; }
+        Name = name;
+        Value = value;
+    }
 
-        /// <summary>
-        /// Value of the property.
-        /// </summary>
-        /// <value></value>
-        public object Value { get; set; }
-
-        internal Property()
-        { }
-
-        /// <summary>
-        /// Create a property by specifying a name and a value.
-        /// </summary>
-        /// <param name="name"></param>
-        /// <param name="value"></param>
-        public Property(string name, object value)
+    /// <summary>
+    /// Overridden method that considers the equality of the name and the value of two property instances.
+    /// </summary>
+    /// <param name="obj">Another instance of the property class.</param>
+    /// <returns></returns>
+    public override bool Equals(object obj)
+    {
+        if (this == obj)
         {
-            Name = name;
-            Value = value;
+            return true;
         }
 
-        /// <summary>
-        /// Overridden method that considers the equality of the name and the value of two property instances.
-        /// </summary>
-        /// <param name="obj">Another instance of the property class.</param>
-        /// <returns></returns>
-        public override bool Equals(object obj)
+        if (!(obj is Property that))
         {
-            if (this == obj)
-            {
-                return true;
-            }
-
-            if (!(obj is Property that))
-            {
-                return false;
-            }
-
-            return Name == that.Name && Objects.AreEqual(Value, that.Value);
+            return false;
         }
 
-        /// <summary>
-        /// Overridden method that computes the hash code of the class using the name and value of the property.
-        /// </summary>
-        /// <returns></returns>
-        public override int GetHashCode()
+        return Name == that.Name && Objects.AreEqual(Value, that.Value);
+    }
+
+    /// <summary>
+    /// Overridden method that computes the hash code of the class using the name and value of the property.
+    /// </summary>
+    /// <returns></returns>
+    public override int GetHashCode()
+    {
+        unchecked
         {
-            unchecked
+            int hash = 17;
+
+            hash = hash * 31 + Name.GetHashCode();
+
+            if (Value is IEnumerable enumerableValue)
             {
-                int hash = 17;
-
-                hash = hash * 31 + Name.GetHashCode();
-
-                if (Value is IEnumerable enumerableValue)
+                foreach(var value in enumerableValue)
                 {
-                    foreach(var value in enumerableValue)
-                    {
-                        hash = hash * 31 + value.GetHashCode();
-                    }
+                    hash = hash * 31 + value.GetHashCode();
                 }
-                else
-                {
-                    hash = hash * 31 + Value.GetHashCode();
-                }
-
-                return hash;
             }
+            else
+            {
+                hash = hash * 31 + Value.GetHashCode();
+            }
+
+            return hash;
         }
+    }
 
-        /// <summary>
-        /// Overridden method that emits a string containing the name and value of the property.
-        /// </summary>
-        /// <returns></returns>
-        public override string ToString()
-        {
-            var stringResult = new StringBuilder();
+    /// <summary>
+    /// Overridden method that emits a string containing the name and value of the property.
+    /// </summary>
+    /// <returns></returns>
+    public override string ToString()
+    {
+        var stringResult = new StringBuilder();
 
-            stringResult.Append("Property{");
-            stringResult.Append("name='");
-            stringResult.Append(Name);
-            stringResult.Append('\'');
-            stringResult.Append(", value=");
-            stringResult.Append(FalkorDBUtilities.ValueToStringNoQuotes(Value));
+        stringResult.Append("Property{");
+        stringResult.Append("name='");
+        stringResult.Append(Name);
+        stringResult.Append('\'');
+        stringResult.Append(", value=");
+        stringResult.Append(FalkorDBUtilities.ValueToStringNoQuotes(Value));
 
-           
+       
 
-            stringResult.Append('}');
+        stringResult.Append('}');
 
-            return stringResult.ToString();
-        }
+        return stringResult.ToString();
     }
 }

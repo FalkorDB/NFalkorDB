@@ -24,4 +24,4 @@ jobs:
     - name: Publish NuGet Package
       env:
         api_key: ${{secrets.NUGET_API_KEY}}
-      run: "dotnet nuget push NFalkorDB/bin/Release/*.nupkg --source https://api.nuget.org/v3/index.json --api-key $api_key"
+      run: "dotnet nuget push NFalkorDB/bin/Release/*.nupkg --skip-duplicate --source https://api.nuget.org/v3/index.json --api-key $api_key"

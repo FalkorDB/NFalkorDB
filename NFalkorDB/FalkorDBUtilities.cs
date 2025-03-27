@@ -5,145 +5,144 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 
-namespace NFalkorDB
+namespace NFalkorDB;
+
+internal static class FalkorDBUtilities
 {
-    internal static class FalkorDBUtilities
+    internal static string PrepareQuery(string query, IDictionary<string, object> parms)
     {
-        internal static string PrepareQuery(string query, IDictionary<string, object> parms)
+        if(parms == null || parms.Count == 0)
         {
-            if(parms == null || parms.Count == 0)
-            {
-                return query;
-            }
-
-            var preparedQuery = new StringBuilder();
-
-            preparedQuery.Append("CYPHER ");
-
-            foreach (var param in parms)
-            {
-                preparedQuery.Append($"{param.Key}={ValueToString(param.Value)} ");
-            }
-
-            preparedQuery.Append(query);
-
-            return preparedQuery.ToString();
+            return query;
         }
 
-        public static string ValueToStringNoQuotes(object value)
+        var preparedQuery = new StringBuilder();
+
+        preparedQuery.Append("CYPHER ");
+
+        foreach (var param in parms)
         {
-            if (value == null)
-            {
-                return "null";
-            }
-
-            if (value is IConvertible floatValue)
-            {
-                return ConvertibleToString(floatValue);
-            }
-
-            return value.ToString();
+            preparedQuery.Append($"{param.Key}={ValueToString(param.Value)} ");
         }
 
-        public static string ValueToString(object value)
+        preparedQuery.Append(query);
+
+        return preparedQuery.ToString();
+    }
+
+    public static string ValueToStringNoQuotes(object value)
+    {
+        if (value == null)
         {
-            if (value == null)
-            {
-                return "null";
-            }
-
-            if (value is string stringValue)
-            {
-                return QuoteString(stringValue);
-            }
-
-            if (value is char charValue)
-            {
-                return QuoteCharacter(charValue);
-            }
-
-            if (value.GetType().IsArray)
-            {
-                if (value is IEnumerable arrayValue)
-                {
-                    var values = new List<object>();
-
-                    foreach (var v in arrayValue)
-                    {
-                        values.Add(v);
-                    }
-
-                    return ArrayToString(values.ToArray());
-                }
-            }
-
-            if ((value is IList valueList) && value.GetType().IsGenericType)
-            {
-                var objectValueList = new List<object>();
-
-                foreach (var val in valueList)
-                {
-                    objectValueList.Add((object) val);
-                }
-
-                return ArrayToString(objectValueList.ToArray());
-            }
-            
-            if (value is bool boolValue)
-            {
-                return boolValue.ToString().ToLowerInvariant();
-            }
-
-            if (value is IConvertible floatValue)
-            {
-                return ConvertibleToString(floatValue);
-            } 
-            
-            return value.ToString();
+            return "null";
         }
 
-        private static string ConvertibleToString(IConvertible floatValue)
+        if (value is IConvertible floatValue)
         {
-            return floatValue.ToString(CultureInfo.InvariantCulture);
+            return ConvertibleToString(floatValue);
         }
 
-        private static string ArrayToString(object[] array)
+        return value.ToString();
+    }
+
+    public static string ValueToString(object value)
+    {
+        if (value == null)
         {
-            var arrayElements = array.Select(x =>
+            return "null";
+        }
+
+        if (value is string stringValue)
+        {
+            return QuoteString(stringValue);
+        }
+
+        if (value is char charValue)
+        {
+            return QuoteCharacter(charValue);
+        }
+
+        if (value.GetType().IsArray)
+        {
+            if (value is IEnumerable arrayValue)
             {
-                if (x.GetType().IsArray)
+                var values = new List<object>();
+
+                foreach (var v in arrayValue)
                 {
-                    return ArrayToString((object[]) x);
+                    values.Add(v);
                 }
-                else
-                {
-                    return ValueToString(x);
-                }
-            });
 
-            var arrayToString = new StringBuilder();
+                return ArrayToString(values.ToArray());
+            }
+        }
 
-            arrayToString.Append('[');
-            arrayToString.Append(string.Join(", ", arrayElements));
-            arrayToString.Append(']');
+        if ((value is IList valueList) && value.GetType().IsGenericType)
+        {
+            var objectValueList = new List<object>();
 
-            return arrayToString.ToString();
+            foreach (var val in valueList)
+            {
+                objectValueList.Add((object) val);
+            }
+
+            return ArrayToString(objectValueList.ToArray());
         }
         
-        internal static string QuoteCharacter(char character) =>
-            $"\"{character}\"";
-
-        internal static string QuoteString(string unquotedString)
+        if (value is bool boolValue)
         {
-            var quotedString = new StringBuilder(unquotedString.Length + 12);
-
-            quotedString.Append('"');
-            quotedString.Append(unquotedString.Replace("\"", "\\\""));
-            quotedString.Append('"');
-
-            return quotedString.ToString();
+            return boolValue.ToString().ToLowerInvariant();
         }
 
-       
+        if (value is IConvertible floatValue)
+        {
+            return ConvertibleToString(floatValue);
+        } 
+        
+        return value.ToString();
     }
+
+    private static string ConvertibleToString(IConvertible floatValue)
+    {
+        return floatValue.ToString(CultureInfo.InvariantCulture);
+    }
+
+    private static string ArrayToString(object[] array)
+    {
+        var arrayElements = array.Select(x =>
+        {
+            if (x.GetType().IsArray)
+            {
+                return ArrayToString((object[]) x);
+            }
+            else
+            {
+                return ValueToString(x);
+            }
+        });
+
+        var arrayToString = new StringBuilder();
+
+        arrayToString.Append('[');
+        arrayToString.Append(string.Join(", ", arrayElements));
+        arrayToString.Append(']');
+
+        return arrayToString.ToString();
+    }
+    
+    internal static string QuoteCharacter(char character) =>
+        $"\"{character}\"";
+
+    internal static string QuoteString(string unquotedString)
+    {
+        var quotedString = new StringBuilder(unquotedString.Length + 12);
+
+        quotedString.Append('"');
+        quotedString.Append(unquotedString.Replace("\"", "\\\""));
+        quotedString.Append('"');
+
+        return quotedString.ToString();
+    }
+
+   
 }

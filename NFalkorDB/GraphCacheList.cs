@@ -1,67 +1,66 @@
 using System.Linq;
 
-namespace NFalkorDB
+namespace NFalkorDB;
+
+internal class GraphCacheList
 {
-    internal class GraphCacheList
+    protected readonly string GraphId;
+    protected readonly string Procedure;
+    protected readonly Graph Graph;
+    
+    private readonly object _locker = new object();
+    
+    private string[] _data;
+
+    internal GraphCacheList(string graphId, string procedure, Graph graph)
     {
-        protected readonly string GraphId;
-        protected readonly string Procedure;
-        protected readonly FalkorDB FalkorDB;
-        
-        private readonly object _locker = new object();
-        
-        private string[] _data;
+        GraphId = graphId;
+        Procedure = procedure;
+        Graph = graph;
+    }
 
-        internal GraphCacheList(string graphId, string procedure, FalkorDB falkordb)
+    // TODO: Change this to use Lazy<T>?
+    internal string GetCachedData(int index)
+    {
+        if (_data == null || index >= _data.Length)
         {
-            GraphId = graphId;
-            Procedure = procedure;
-            FalkorDB = falkordb;
-        }
-
-        // TODO: Change this to use Lazy<T>?
-        internal string GetCachedData(int index)
-        {
-            if (_data == null || index >= _data.Length)
+            lock(_locker)
             {
-                lock(_locker)
+                if (_data == null || index >= _data.Length)
                 {
-                    if (_data == null || index >= _data.Length)
-                    {
-                        GetProcedureInfo();
-                    }
+                    GetProcedureInfo();
                 }
             }
-
-            return _data.ElementAtOrDefault(index);
         }
 
-        private void GetProcedureInfo()
-        {
-            var resultSet = CallProcedure();
-            var newData = new string[resultSet.Count];
-            var i = 0;
-
-            foreach (var record in resultSet)
-            {
-                newData[i++] = record.GetString(0);
-            }
-
-            _data = newData;
-        }
-
-        protected virtual ResultSet CallProcedure() =>
-            FalkorDB.CallProcedure(GraphId, Procedure);
+        return _data.ElementAtOrDefault(index);
     }
 
-    internal class ReadOnlyGraphCacheList : GraphCacheList
+    private void GetProcedureInfo()
     {
-        internal ReadOnlyGraphCacheList(string graphId, string procedure, FalkorDB falkordb) : 
-            base(graphId, procedure, falkordb)
+        var resultSet = CallProcedure();
+        var newData = new string[resultSet.Count];
+        var i = 0;
+
+        foreach (var record in resultSet)
         {
+            newData[i++] = record.GetString(0);
         }
 
-        protected override ResultSet CallProcedure() =>
-            FalkorDB.CallProcedureReadOnly(GraphId, Procedure);
+        _data = newData;
     }
+
+    protected virtual ResultSet CallProcedure() =>
+        Graph.CallProcedure(Procedure);
+}
+
+internal class ReadOnlyGraphCacheList : GraphCacheList
+{
+    internal ReadOnlyGraphCacheList(string graphId, string procedure, Graph graph) : 
+        base(graphId, procedure, graph)
+    {
+    }
+
+    protected override ResultSet CallProcedure() =>
+        Graph.CallProcedureReadOnly(Procedure);
 }
