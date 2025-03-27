@@ -1,26 +1,26 @@
-# NRedisGraph
+# NFalkorDB
 
-[![Build Status](https://github.com/tombatron/NRedisGraph/actions/workflows/dotnet.yml/badge.svg)](https://github.com/tombatron/NRedisGraph/actions/workflows/dotnet.yml)
+[![Build Status](https://github.com/falkordb/NFalkorDB/actions/workflows/dotnet.yml/badge.svg)](https://github.com/falkordb/NFalkorDB/actions/workflows/dotnet.yml)
 
 ## Overview
 
-NRedisGraph is a series of extensions methods for the [StackExchange.Redis](https://github.com/StackExchange/StackExchange.Redis) library that will enable you to interact with the [Redis](https://redis.io) module [RedisGraph](https://oss.redislabs.com/redisgraph/). This is made possible by the `Execute` and `ExecuteAsync` methods already present in the StackExchange.Redis library. 
+NFalkorDB is a series of extensions methods for the [StackExchange.Redis](https://github.com/StackExchange/StackExchange.Redis) library that will enable you to interact with the [Redis](https://redis.io) module [FalkorDB](https://www.falkordb.com). This is made possible by the `Execute` and `ExecuteAsync` methods already present in the StackExchange.Redis library.
 
-The intent of this library is to duplicate the API (as much as possible) of the RedisGraph module support found embedded in the [Jedis](https://github.com/xetorthio/jedis) library.
+The intent of this library is to duplicate the API (as much as possible) of the FalkorDB module support found embedded in the [Jedis](https://github.com/xetorthio/jedis) library.
 
 ## Installation
 
-`PM> Install-Package NRedisGraph -Version 1.9.0`
+`PM> Install-Package NFalkorDB -Version 1.9.0`
 
 ## Usage
 
-I'm assuming that you already have the [RedisGraph](https://oss.redislabs.com/redisgraph/) module installed on your Redis server. 
+I'm assuming that you already have the [FalkorDB](https://docs.falkordb.com/) module installed on your Redis server.
 
 You can verify that the module is installed by executing the following command:
 
 `MODULE LIST`
 
-If RedisGraph is installed you should see output similar to the following:
+If FalkorDB is installed you should see output similar to the following:
 
 ```
 1) 1) "name"
@@ -37,6 +37,6 @@ If RedisGraph is installed you should see output similar to the following:
 
 ## Examples
 
-In this repository there are a suite of integration tests that should be sufficient to serve as examples on how to use all supported RedisGraph commands.
+In this repository there are a suite of integration tests that should be sufficient to serve as examples on how to use all supported FalkorDB commands.
 
-[Integration Tests](https://github.com/tombatron/NRedisGraph/blob/master/NRedisGraph.Tests/RedisGraphAPITest.cs)
+[Integration Tests](https://github.com/falkordb/NFalkorDB/blob/master/NFalkorDB.Tests/FalkorDBAPITest.cs)
