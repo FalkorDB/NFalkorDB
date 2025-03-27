@@ -33,7 +33,7 @@ namespace NFalkorDB
 
         internal ResultSet(RedisResult result, IGraphCache graphCache)
         {
-            if (result.Type == ResultType.MultiBulk)
+            if (result.Resp2Type == ResultType.Array)
             {
                 var resultArray = (RedisResult[])result;
 
@@ -58,7 +58,7 @@ namespace NFalkorDB
             }
             else
             {
-                if (result.Type == ResultType.Error)
+                if (result.Resp2Type == ResultType.Error)
                 {
                     throw new NFalkorDBRunTimeException(result.ToString());
                 }
@@ -253,7 +253,7 @@ namespace NFalkorDB
         {
             foreach (var result in results)
             {
-                if (result.Type == ResultType.Error)
+                if (result.Resp2Type == ResultType.Error)
                 {
                     throw new NFalkorDBRunTimeException(result.ToString());
                 }

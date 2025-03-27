@@ -479,11 +479,11 @@ namespace NFalkorDB.Tests
             Assert.NotNull(_api.Query("whatever", "CREATE (a:Test {SomeString: $SomeString})", parameters));
         }
 
-        public static readonly object[][] EscapedCypherParameters = new[]
-        {
+        public static readonly object[][] EscapedCypherParameters =
+        [
             new object[] {new Dictionary<string, object> {{"SomeString", "dsf\"dsfdss"}}},
-            new object[] {new Dictionary<string, object> {{"SomeString", "dsfdsfdss\"#"}}},
-        };
+            [new Dictionary<string, object> {{"SomeString", "dsfdsfdss\"#"}}],
+        ];
 
         [Fact]
         public void TestMultiExec()
@@ -624,7 +624,7 @@ namespace NFalkorDB.Tests
             Assert.Equal(new[] {"x"}, record.Keys);
 
             var x = record.GetValue<object[]>("x");
-            Assert.Equal(new object[] {0L, 1L, 2L}, x);
+            Assert.Equal([0L, 1L, 2L], x);
 
             // test collect
             resultSet = _api.Query("social", "MATCH(n) return collect(n) as x");
@@ -968,18 +968,18 @@ namespace NFalkorDB.Tests
             Assert.Equal(30L, rsRo.First().GetValue<long>(0));
         }
 
-        public static object[][] TestParameterValues = new object[][]
-        {
-            new object[] {1L},
-            new object[] {2.3},
-            new object[] {true},
-            new object[] {false},
-            new object[] {null},
-            new object[] {"str"},
-            new object[] {new List<long> {1, 2, 3}},
-            new object[] {new[] {1L, 2L, 3L}},
-            new object[] {new List<long> {1, 2, 3}.Select(n => new object[] {n, n.ToString()}).ToArray()},
-            new object[] {new List<long> {1, 2, 3}.Select(n => new List<object> {n, n.ToString()}).ToList()}
-        };
+        public static object[][] TestParameterValues =
+        [
+            [1L],
+            [2.3],
+            [true],
+            [false],
+            [null],
+            ["str"],
+            [new List<long> {1, 2, 3}],
+            [new[] {1L, 2L, 3L}],
+            [new List<long> {1, 2, 3}.Select(n => new object[] {n, n.ToString()}).ToArray()],
+            [new List<long> {1, 2, 3}.Select(n => new List<object> {n, n.ToString()}).ToList()]
+        ];
     }
 }

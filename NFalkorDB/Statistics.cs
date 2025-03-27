@@ -150,13 +150,13 @@ namespace NFalkorDB
 
         internal Statistics(RedisResult statistics)
         {
-            if (statistics.Type == ResultType.MultiBulk)
+            if (statistics.Resp2Type == ResultType.Array)
             {
                 _statistics = (RedisResult[])statistics;
             }
             else
             {
-                _statistics = new[] { statistics };
+                _statistics = [statistics];
             }
         }
 
