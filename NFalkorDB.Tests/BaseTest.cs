@@ -1,23 +1,22 @@
 using System;
 
-namespace NFalkorDB.Tests
+namespace NFalkorDB.Tests;
+
+public abstract class BaseTest : IDisposable
 {
-    public abstract class BaseTest : IDisposable
+    public string RedisConnectionString { get; } = Environment.GetEnvironmentVariable("REDIS_CONNECTION_STRING") ?? "localhost";
+
+    protected abstract void BeforeTest();
+
+    protected abstract void AfterTest();
+
+    public BaseTest()
     {
-        public string RedisConnectionString { get; } = Environment.GetEnvironmentVariable("REDIS_CONNECTION_STRING") ?? "localhost";
+        BeforeTest();
+    }
 
-        protected abstract void BeforeTest();
-
-        protected abstract void AfterTest();
-
-        public BaseTest()
-        {
-            BeforeTest();
-        }
-
-        public void Dispose()
-        {
-            AfterTest();
-        }
+    public void Dispose()
+    {
+        AfterTest();
     }
 }
