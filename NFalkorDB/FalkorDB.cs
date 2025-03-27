@@ -41,6 +41,7 @@ namespace NFalkorDB
         /// <param name="query">The Cypher query.</param>
         /// <param name="parameters">Parameters map.</param>
         /// <param name="flags">[Optional] Command flags that are to be sent to the StackExchange.Redis connection multiplexer...</param>
+        /// <param name="timeout">[Optional] Timeout in milliseconds.</param>
         /// <returns>A result set.</returns>
         public ResultSet Query(string graphId, string query, IDictionary<string, object> parameters = null, CommandFlags flags = CommandFlags.None, long timeout = 0)
         {

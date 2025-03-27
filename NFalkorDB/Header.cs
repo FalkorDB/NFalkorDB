@@ -51,6 +51,11 @@ namespace NFalkorDB
             }
         }
 
+        /// <summary>
+        /// Returns a value indicating whether this instance is equal to a specified object.
+        /// </summary>
+        /// <param name="obj"></param>
+        /// <returns></returns>
         public override bool Equals(object obj)
         {
             if (this == obj)
@@ -68,9 +73,17 @@ namespace NFalkorDB
             return Objects.AreEqual(SchemaNames, header.SchemaNames);
         }
 
+        /// <summary>
+        /// Returns a string representation of the object.
+        /// </summary>
+        /// <returns></returns>
         public override string ToString() =>
             $"Header{{schemaNames=[{string.Join(", ", SchemaNames)}]}}";
 
+        /// <summary>
+        /// Returns a hash code value for the object.
+        /// </summary>
+        /// <returns></returns>
         public override int GetHashCode()
         {
             var hash = new HashCode();
