@@ -17,6 +17,11 @@ public sealed class FalkorDB
     /// <param name="db"></param>
     public FalkorDB(IDatabase db) => _db = db;
 
+    /// <summary>
+    /// Selects a graph by its ID.
+    /// </summary>
+    /// <param name="graphId"></param>
+    /// <returns></returns>
     public Graph SelectGraph(string graphId)
     {
         var graph = new Graph(graphId, _db);

@@ -7,6 +7,9 @@ using static NFalkorDB.FalkorDBUtilities;
 
 namespace NFalkorDB;
 
+/// <summary>
+/// A graph object that represents a graph in the database.
+/// </summary>
 public class Graph
 {
     internal static readonly object CompactQueryFlag = "--COMPACT";
@@ -15,7 +18,12 @@ public class Graph
     IGraphCache _cache;
     private readonly IDatabase _db;
 
-    public Graph(string graphId, IDatabase db)
+    /// <summary>
+    /// Create a new graph instance.
+    /// </summary>
+    /// <param name="graphId"></param>
+    /// <param name="db"></param>
+    internal Graph(string graphId, IDatabase db)
     {
         _graphId = graphId;
         _cache = new GraphCache(graphId, this);
@@ -25,7 +33,6 @@ public class Graph
     /// <summary>
     /// Execute a Cypher query with parameters.
     /// </summary>
-    /// <param name="graphId">A graph to perform the query on.</param>
     /// <param name="query">The Cypher query.</param>
     /// <param name="parameters">Parameters map.</param>
     /// <param name="flags">[Optional] Command flags that are to be sent to the StackExchange.Redis connection multiplexer...</param>
@@ -57,7 +64,6 @@ public class Graph
     /// <summary>
     /// Execute a Cypher query with parameters.
     /// </summary>
-    /// <param name="graphId">A graph to perform the query on.</param>
     /// <param name="query">The Cypher query.</param>
     /// <param name="parameters">Parameters map.</param>
     /// <param name="flags">[Optional] Command flags that are to be sent to the StackExchange.Redis connection multiplexer...</param>
@@ -88,9 +94,8 @@ public class Graph
     /// <summary>
     /// Execute a Cypher query, preferring a read-only node.
     /// </summary>
-    /// <param name="graphId">A graph to perform the query on.</param>
     /// <param name="query">The Cypher query.</param>
-    /// <param name="parameters">Parameters map.</param>
+    /// <param name="parms">Parameters map.</param>
     /// <param name="flags">Optional command flags. `PreferReplica` is set for you here.</param>
     /// <returns>A result set.</returns>
     public ResultSet ReadOnlyQuery(string query, IDictionary<string, object> parms = null, CommandFlags flags = CommandFlags.None)
@@ -112,9 +117,8 @@ public class Graph
     /// <summary>
     /// Execute a Cypher query, preferring a read-only node.
     /// </summary>
-    /// <param name="graphId">A graph to perform the query on.</param>
     /// <param name="query">The Cypher query.</param>
-    /// <param name="parameters">Parameters map.</param>
+    /// <param name="parms">Parameters map.</param>
     /// <param name="flags">Optional command flags. `PreferReplica` is set for you here.</param>
     /// <returns>A result set.</returns>
     public async Task<ResultSet> ReadOnlyQueryAsync(string query, IDictionary<string, object> parms = null, CommandFlags flags = CommandFlags.None)
@@ -136,7 +140,6 @@ public class Graph
     /// <summary>
     /// Call a saved procedure with parameters.
     /// </summary>
-    /// <param name="graphId">The graph containing the saved procedure.</param>
     /// <param name="procedure">The procedure name.</param>
     /// <param name="args">A collection of positional arguments.</param>
     /// <param name="kwargs">A collection of keyword arguments.</param>
@@ -161,7 +164,6 @@ public class Graph
     /// <summary>
     /// Call a saved procedure with parameters.
     /// </summary>
-    /// <param name="graphId">The graph containing the saved procedure.</param>
     /// <param name="procedure">The procedure name.</param>
     /// <param name="args">A collection of positional arguments.</param>
     /// <param name="kwargs">A collection of keyword arguments.</param>
@@ -186,7 +188,6 @@ public class Graph
     /// <summary>
     /// Call a saved procedure with parameters against a read-only node.
     /// </summary>
-    /// <param name="graphId">The graph containing the saved procedure.</param>
     /// <param name="procedure">The procedure name.</param>
     /// <param name="args">A collection of positional arguments.</param>
     /// <param name="kwargs">A collection of keyword arguments.</param>
@@ -211,7 +212,6 @@ public class Graph
     /// <summary>
     /// Call a saved procedure with parameters against a read-only node.
     /// </summary>
-    /// <param name="graphId">The graph containing the saved procedure.</param>
     /// <param name="procedure">The procedure name.</param>
     /// <param name="args">A collection of positional arguments.</param>
     /// <param name="kwargs">A collection of keyword arguments.</param>
