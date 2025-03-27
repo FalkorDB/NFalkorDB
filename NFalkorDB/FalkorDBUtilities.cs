@@ -11,6 +11,11 @@ namespace NFalkorDB
     {
         internal static string PrepareQuery(string query, IDictionary<string, object> parms)
         {
+            if(parms == null || parms.Count == 0)
+            {
+                return query;
+            }
+
             var preparedQuery = new StringBuilder();
 
             preparedQuery.Append("CYPHER ");

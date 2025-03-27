@@ -1,5 +1,3 @@
-// .NET port of https://github.com/RedisGraph/JRedisGraph
-
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -42,51 +40,18 @@ namespace NFalkorDB
         /// <param name="graphId">A graph to perform the query on.</param>
         /// <param name="query">The Cypher query.</param>
         /// <param name="parameters">Parameters map.</param>
-        /// <param name="flags">[Optional] Command flags that are to be sent to the StackExchange.Redis connection multiplexer...</param> 
-        /// <returns>A result set.</returns>
-        public ResultSet GraphQuery(string graphId, string query, IDictionary<string, object> parameters, CommandFlags flags = CommandFlags.None) =>
-            Query(graphId, query, parameters, flags);
-
-        /// <summary>
-        /// Execute a Cypher query with parameters.
-        /// </summary>
-        /// <param name="graphId">A graph to perform the query on.</param>
-        /// <param name="query">The Cypher query.</param>
-        /// <param name="parameters">Parameters map.</param>
         /// <param name="flags">[Optional] Command flags that are to be sent to the StackExchange.Redis connection multiplexer...</param>
         /// <returns>A result set.</returns>
-        public ResultSet Query(string graphId, string query, IDictionary<string, object> parameters, CommandFlags flags = CommandFlags.None)
+        public ResultSet Query(string graphId, string query, IDictionary<string, object> parameters = null, CommandFlags flags = CommandFlags.None, long timeout = 0)
         {
             var preparedQuery = PrepareQuery(query, parameters);
 
-            return Query(graphId, preparedQuery, flags);
-        }
-
-        /// <summary>
-        /// Execute a Cypher query.
-        /// </summary>
-        /// <param name="graphId">A graph to perform the query on.</param>
-        /// <param name="query">The Cypher query.</param>
-        /// <param name="flags">[Optional] Command flags that are to be sent to the StackExchange.Redis connection multiplexer...</param>
-        /// <returns>A result set.</returns>
-        public ResultSet GraphQuery(string graphId, string query, CommandFlags flags = CommandFlags.None) =>
-            Query(graphId, query, flags);
-
-        /// <summary>
-        /// Execute a Cypher query.
-        /// </summary>
-        /// <param name="graphId">A graph to perform the query on.</param>
-        /// <param name="query">The Cypher query.</param>
-        /// <param name="flags">[Optional] Command flags that are to be sent to the StackExchange.Redis connection multiplexer...</param>
-        /// <returns>A result set.</returns>
-        public ResultSet Query(string graphId, string query, CommandFlags flags = CommandFlags.None)
-        {
             _graphCaches.PutIfAbsent(graphId, new GraphCache(graphId, this));
 
             var commandArgs = new object[]
             {
                 graphId,
-                query,
+                preparedQuery,
                 CompactQueryFlag
             };
 
@@ -110,49 +75,16 @@ namespace NFalkorDB
         /// <param name="parameters">Parameters map.</param>
         /// <param name="flags">[Optional] Command flags that are to be sent to the StackExchange.Redis connection multiplexer...</param>
         /// <returns>A result set.</returns>
-        public Task<ResultSet> GraphQueryAsync(string graphId, string query, IDictionary<string, object> parameters, CommandFlags flags = CommandFlags.None) =>
-            QueryAsync(graphId, query, parameters, flags);
-
-        /// <summary>
-        /// Execute a Cypher query with parameters.
-        /// </summary>
-        /// <param name="graphId">A graph to perform the query on.</param>
-        /// <param name="query">The Cypher query.</param>
-        /// <param name="parameters">Parameters map.</param>
-        /// <param name="flags">[Optional] Command flags that are to be sent to the StackExchange.Redis connection multiplexer...</param>
-        /// <returns>A result set.</returns>
-        public Task<ResultSet> QueryAsync(string graphId, string query, IDictionary<string, object> parameters, CommandFlags flags = CommandFlags.None)
+        public async Task<ResultSet> QueryAsync(string graphId, string query, IDictionary<string, object> parameters = null, CommandFlags flags = CommandFlags.None)
         {
             var preparedQuery = PrepareQuery(query, parameters);
 
-            return QueryAsync(graphId, preparedQuery, flags);
-        }
-
-        /// <summary>
-        /// Execute a Cypher query.
-        /// </summary>
-        /// <param name="graphId">A graph to perform the query on.</param>
-        /// <param name="query">The Cypher query.</param>
-        /// <param name="flags">[Optional] Command flags that are to be sent to the StackExchange.Redis connection multiplexer...</param>
-        /// <returns>A result set.</returns>
-        public Task<ResultSet> GraphQueryAsync(string graphId, string query, CommandFlags flags = CommandFlags.None) =>
-            QueryAsync(graphId, query, flags);
-
-        /// <summary>
-        /// Execute a Cypher query.
-        /// </summary>
-        /// <param name="graphId">A graph to perform the query on.</param>
-        /// <param name="query">The Cypher query.</param>
-        /// <param name="flags">[Optional] Command flags that are to be sent to the StackExchange.Redis connection multiplexer...</param>
-        /// <returns>A result set.</returns>
-        public async Task<ResultSet> QueryAsync(string graphId, string query, CommandFlags flags = CommandFlags.None)
-        {
             _graphCaches.PutIfAbsent(graphId, new GraphCache(graphId, this));
 
             var commandArgs = new object[]
             {
                 graphId,
-                query,
+                preparedQuery,
                 CompactQueryFlag
             };
 
@@ -245,7 +177,7 @@ namespace NFalkorDB
         }
 
         internal static readonly Dictionary<string, List<string>> EmptyKwargsDictionary =
-            new Dictionary<string, List<string>>();
+            [];
 
         /// <summary>
         /// Call a saved procedure.
@@ -311,7 +243,7 @@ namespace NFalkorDB
                 queryBody.Append(string.Join(",", kwargsList));
             }
 
-            return Query(graphId, queryBody.ToString(), flags);
+            return Query(graphId, queryBody.ToString(), flags: flags);
         }
 
         /// <summary>
@@ -336,7 +268,7 @@ namespace NFalkorDB
                 queryBody.Append(string.Join(",", kwargsList));
             }
 
-            return QueryAsync(graphId, queryBody.ToString(), flags);
+            return QueryAsync(graphId, queryBody.ToString(), flags: flags);
         }
 
         /// <summary>

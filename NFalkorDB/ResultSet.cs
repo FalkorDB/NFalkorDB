@@ -23,7 +23,9 @@ namespace NFalkorDB
             VALUE_EDGE,
             VALUE_NODE,
             VALUE_PATH,
-            VALUE_MAP
+            VALUE_MAP,
+            VALUE_POINT,
+            VALUE_VECTOR
         }
 
         private readonly RedisResult[] _rawResults;
@@ -111,23 +113,8 @@ namespace NFalkorDB
                     for (int i = 0; i < row.Length; i++)
                     {
                         var obj = (RedisResult[])row[i];
-                        var objType = Header.SchemaTypes[i];
 
-                        switch (objType)
-                        {
-                            case Header.ResultSetColumnTypes.COLUMN_NODE:
-                                parsedRow.Add(DeserializeNode(obj));
-                                break;
-                            case Header.ResultSetColumnTypes.COLUMN_RELATION:
-                                parsedRow.Add(DeserializeEdge(obj));
-                                break;
-                            case Header.ResultSetColumnTypes.COLUMN_SCALAR:
-                                parsedRow.Add(DeserializeScalar(obj));
-                                break;
-                            default:
-                                parsedRow.Add(null);
-                                break;
-                        }
+                        parsedRow.Add(DeserializeScalar(obj));
                     }
 
                     yield return new Record(Header.SchemaNames, parsedRow);
@@ -198,6 +185,10 @@ namespace NFalkorDB
                   return DeserializePath((RedisResult[])rawScalarData[1]);
                 case ResultSetScalarType.VALUE_MAP:
                   return DeserializeMap((RedisResult[])rawScalarData[1]);
+                case ResultSetScalarType.VALUE_POINT:
+                    return new Point((double)rawScalarData[1][0], (double)rawScalarData[1][1]);
+                case ResultSetScalarType.VALUE_VECTOR:
+                    return rawScalarData[1];
                 case ResultSetScalarType.VALUE_UNKNOWN:
                 default:
                     return (object)rawScalarData[1];

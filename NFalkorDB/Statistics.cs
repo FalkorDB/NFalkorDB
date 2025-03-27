@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using StackExchange.Redis;
@@ -12,9 +11,6 @@ namespace NFalkorDB
     {
         /// <summary>
         /// A class that represents the various kinds of statistics labels.
-        /// 
-        /// In JRedisGraph this was represented by using an `enum`, here we're using the "smart enum"
-        /// pattern to replicate the logic.
         /// </summary>
         public sealed class Label
         {

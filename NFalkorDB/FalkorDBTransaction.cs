@@ -28,8 +28,8 @@ namespace NFalkorDB
         private readonly ITransaction _transaction;
         private readonly IDictionary<string, IGraphCache> _graphCaches;
         private readonly FalkorDB _falkordb;
-        private readonly List<TransactionResult> _pendingTasks = new List<TransactionResult>();
-        private readonly List<string> _graphCachesToRemove = new List<string>();
+        private readonly List<TransactionResult> _pendingTasks = [];
+        private readonly List<string> _graphCachesToRemove = [];
 
         internal FalkorDBTransaction(ITransaction transaction, FalkorDB falkordb, IDictionary<string, IGraphCache> graphCaches)
         {

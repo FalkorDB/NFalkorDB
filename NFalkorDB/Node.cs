@@ -9,7 +9,7 @@ namespace NFalkorDB
     /// </summary>
     public sealed class Node : GraphEntity
     {
-        private readonly List<string> _labels = new List<string>();
+        private readonly List<string> _labels = [];
 
         /// <summary>
         /// Adds a label to a node.

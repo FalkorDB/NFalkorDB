@@ -23,9 +23,9 @@ public class Number25 : BaseTest
         _readWriteApi = new FalkorDB(_readWriteMultiplexer.GetDatabase(0));
         
         // Setup the data.
-        _readWriteApi.GraphQuery("issue25", "CREATE (:Person {username: 'John', age: 20})");
-        _readWriteApi.GraphQuery("issue25", "CREATE (:Person {username: 'Peter', age: 23})");
-        _readWriteApi.GraphQuery("issue25", "CREATE (:Person {username: 'Steven', age: 30})");        
+        _readWriteApi.Query("issue25", "CREATE (:Person {username: 'John', age: 20})");
+        _readWriteApi.Query("issue25", "CREATE (:Person {username: 'Peter', age: 23})");
+        _readWriteApi.Query("issue25", "CREATE (:Person {username: 'Steven', age: 30})");        
     }
 
     protected override void AfterTest()

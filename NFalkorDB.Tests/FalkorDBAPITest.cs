@@ -1,5 +1,3 @@
-// .NET port of https://github.com/RedisGraph/JRedisGraph
-
 using NFalkorDB.Tests.Utils;
 using StackExchange.Redis;
 using System;
@@ -7,7 +5,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using Xunit;
-using static NFalkorDB.Header;
 using static NFalkorDB.Statistics;
 
 namespace NFalkorDB.Tests
@@ -161,11 +158,11 @@ namespace NFalkorDB.Tests
             Assert.Equal(1, createNonExistingIndexResult.Statistics.IndicesCreated);
 
             var exception = Assert.Throws<RedisServerException>(() => 
-                _api.GraphQuery("social", "CREATE INDEX ON :person(age)")
+                _api.Query("social", "CREATE INDEX ON :person(age)")
             );
             Assert.Contains("Attribute 'age' is already indexed", exception.Message);
 
-            ResultSet deleteExistingIndexResult = _api.GraphQuery("social", "DROP INDEX ON :person(age)");
+            ResultSet deleteExistingIndexResult = _api.Query("social", "DROP INDEX ON :person(age)");
             Assert.Empty(deleteExistingIndexResult);
             Assert.Equal(1, deleteExistingIndexResult.Statistics.IndicesDeleted);
         }
@@ -182,18 +179,13 @@ namespace NFalkorDB.Tests
             Assert.NotNull(queryResult.Header);
             Header header = queryResult.Header;
 
-            Assert.Equal("Header{"
-                         + "schemaTypes=[COLUMN_SCALAR, COLUMN_SCALAR, COLUMN_SCALAR], "
-                         + "schemaNames=[a, r, a.age]}", header.ToString());
+            Assert.Equal("Header{schemaNames=[a, r, a.age]}", header.ToString());
 
             List<string> schemaNames = header.SchemaNames;
-            List<Header.ResultSetColumnTypes> schemaTypes = header.SchemaTypes;
 
             Assert.NotNull(schemaNames);
-            Assert.NotNull(schemaTypes);
 
             Assert.Equal(3, schemaNames.Count);
-            Assert.Equal(3, schemaTypes.Count);
 
             Assert.Equal("a", schemaNames[0]);
             Assert.Equal("r", schemaNames[1]);
@@ -343,11 +335,8 @@ namespace NFalkorDB.Tests
                 Assert.NotNull(resultSet.Header);
                 Header header = resultSet.Header;
                 List<String> schemaNames = header.SchemaNames;
-                List<Header.ResultSetColumnTypes> schemaTypes = header.SchemaTypes;
                 Assert.NotNull(schemaNames);
-                Assert.NotNull(schemaTypes);
                 Assert.Equal(3, schemaNames.Count);
-                Assert.Equal(3, schemaTypes.Count);
                 Assert.Equal("a", schemaNames[0]);
                 Assert.Equal("r", schemaNames[1]);
                 Assert.Equal("a.age", schemaNames[2]);
@@ -381,11 +370,8 @@ namespace NFalkorDB.Tests
                 Assert.NotNull(resultSet.Header);
                 Header header = resultSet.Header;
                 List<String> schemaNames = header.SchemaNames;
-                List<Header.ResultSetColumnTypes> schemaTypes = header.SchemaTypes;
                 Assert.NotNull(schemaNames);
-                Assert.NotNull(schemaTypes);
                 Assert.Equal(2, schemaNames.Count);
-                Assert.Equal(2, schemaTypes.Count);
                 Assert.Equal("a", schemaNames[0]);
                 Assert.Equal("r", schemaNames[1]);
                 Assert.Single(resultSet);
@@ -425,11 +411,8 @@ namespace NFalkorDB.Tests
             Assert.NotNull(resultSet.Header);
             Header header = resultSet.Header;
             List<String> schemaNames = header.SchemaNames;
-            List<Header.ResultSetColumnTypes> schemaTypes = header.SchemaTypes;
             Assert.NotNull(schemaNames);
-            Assert.NotNull(schemaTypes);
             Assert.Equal(2, schemaNames.Count);
-            Assert.Equal(2, schemaTypes.Count);
             Assert.Equal("a", schemaNames[0]);
             Assert.Equal("r", schemaNames[1]);
             Assert.Single(resultSet);
@@ -456,11 +439,8 @@ namespace NFalkorDB.Tests
             Assert.NotNull(resultSet.Header);
             header = resultSet.Header;
             schemaNames = header.SchemaNames;
-            schemaTypes = header.SchemaTypes;
             Assert.NotNull(schemaNames);
-            Assert.NotNull(schemaTypes);
             Assert.Equal(2, schemaNames.Count);
-            Assert.Equal(2, schemaTypes.Count);
             Assert.Equal("a", schemaNames[0]);
             Assert.Equal("r", schemaNames[1]);
             Assert.Single(resultSet);
@@ -483,13 +463,13 @@ namespace NFalkorDB.Tests
             params1.Put("s1", "S\"'");
             params1.Put("s2", "S'\"");
             
-            Assert.NotNull(_api.GraphQuery("social", "CREATE (:escaped{s1:$s1,s2:$s2})", params1));
+            Assert.NotNull(_api.Query("social", "CREATE (:escaped{s1:$s1,s2:$s2})", params1));
 
             var params2 = new Dictionary<string, object>();
             params2.Put("s1", "S\"'");
             params2.Put("s2", "S'\"");
 
-            Assert.NotNull(_api.GraphQuery("social", "MATCH (n) where n.s1=$s1 and n.s2=$s2 RETURN n", params2));
+            Assert.NotNull(_api.Query("social", "MATCH (n) where n.s1=$s1 and n.s2=$s2 RETURN n", params2));
         }
 
         [Theory]
@@ -543,13 +523,10 @@ namespace NFalkorDB.Tests
             var header = resultSet.Header;
 
             var schemaNames = header.SchemaNames;
-            var schemaTypes = header.SchemaTypes;
 
             Assert.NotNull(schemaNames);
-            Assert.NotNull(schemaTypes);
 
             Assert.Single(schemaNames);
-            Assert.Single(schemaTypes);
 
             Assert.Equal("n", schemaNames[0]);
 
@@ -573,13 +550,10 @@ namespace NFalkorDB.Tests
             Assert.NotNull(resultSet.Header);
 
             schemaNames = header.SchemaNames;
-            schemaTypes = header.SchemaTypes;
 
             Assert.NotNull(schemaNames);
-            Assert.NotNull(schemaTypes);
 
             Assert.Single(schemaNames);
-            Assert.Single(schemaTypes);
 
             Assert.Equal("n", schemaNames[0]);
 
@@ -637,13 +611,10 @@ namespace NFalkorDB.Tests
             var header = resultSet.Header;
 
             var schemaNames = header.SchemaNames;
-            var schemaTypes = header.SchemaTypes;
 
             Assert.NotNull(schemaNames);
-            Assert.NotNull(schemaTypes);
 
             Assert.Single(schemaNames);
-            Assert.Single(schemaTypes);
 
             Assert.Equal("x", schemaNames[0]);
 
@@ -662,13 +633,10 @@ namespace NFalkorDB.Tests
             header = resultSet.Header;
 
             schemaNames = header.SchemaNames;
-            schemaTypes = header.SchemaTypes;
 
             Assert.NotNull(schemaNames);
-            Assert.NotNull(schemaTypes);
 
             Assert.Single(schemaNames);
-            Assert.Single(schemaTypes);
 
             Assert.Equal("x", schemaNames[0]);
 
@@ -688,13 +656,10 @@ namespace NFalkorDB.Tests
             header = resultSet.Header;
 
             schemaNames = header.SchemaNames;
-            schemaTypes = header.SchemaTypes;
 
             Assert.NotNull(schemaNames);
-            Assert.NotNull(schemaTypes);
 
             Assert.Single(schemaNames);
-            Assert.Single(schemaTypes);
 
             Assert.Equal("x", schemaNames[0]);
 
@@ -780,7 +745,7 @@ namespace NFalkorDB.Tests
         public void TestParametersReadOnly()
         {
             // Dummy call to create the empty graph
-            _api.GraphQuery("social", "RETURN 1");
+            _api.Query("social", "RETURN 1");
 
             var parameters = new object[]
             {
@@ -814,15 +779,15 @@ namespace NFalkorDB.Tests
         public void TestNullGraphEntities()
         {
             // Create two nodes connected by a single outgoing edge.
-            Assert.NotNull(_api.GraphQuery("social", "CREATE (:L)-[:E]->(:L2)"));
+            Assert.NotNull(_api.Query("social", "CREATE (:L)-[:E]->(:L2)"));
 
             // Test a query that produces 1 record with 3 null values.
-            ResultSet resultSet = _api.GraphQuery("social", "OPTIONAL MATCH (a:NONEXISTENT)-[e]->(b) RETURN a, e, b");
+            ResultSet resultSet = _api.Query("social", "OPTIONAL MATCH (a:NONEXISTENT)-[e]->(b) RETURN a, e, b");
             Assert.Single(resultSet);
             Assert.Equal(new object[] {null, null, null}, resultSet.First().Values);
 
             // Test a query that produces 2 records, with 2 null values in the second.
-            resultSet = _api.GraphQuery("social", "MATCH (a) OPTIONAL MATCH (a)-[e]->(b) RETURN a, e, b ORDER BY ID(a)");
+            resultSet = _api.Query("social", "MATCH (a) OPTIONAL MATCH (a)-[e]->(b) RETURN a, e, b ORDER BY ID(a)");
             Assert.Equal(2, resultSet.Count);
 
             var record = resultSet.First();
@@ -841,7 +806,7 @@ namespace NFalkorDB.Tests
 
             // Test a query that produces 2 records, the first containing a path and the
             // second containing a null value.
-            resultSet = _api.GraphQuery("social", "MATCH (a) OPTIONAL MATCH p = (a)-[e]->(b) RETURN p");
+            resultSet = _api.Query("social", "MATCH (a) OPTIONAL MATCH p = (a)-[e]->(b) RETURN p");
             Assert.Equal(2, resultSet.Count);
 
             record = resultSet.First();
@@ -859,7 +824,7 @@ namespace NFalkorDB.Tests
             long value = 1L << 40;
             var parameters = new Dictionary<string, object>();
             parameters.Put("val", value);
-            ResultSet resultSet = _api.GraphQuery("social", "CREATE (n {val:$val}) RETURN n.val", parameters);
+            ResultSet resultSet = _api.Query("social", "CREATE (n {val:$val}) RETURN n.val", parameters);
 
             Assert.Single(resultSet);
 
@@ -869,13 +834,13 @@ namespace NFalkorDB.Tests
         [Fact]
         public void TestCachedExecution()
         {
-            _api.GraphQuery("social", "CREATE (:N {val:1}), (:N {val:2})");
+            _api.Query("social", "CREATE (:N {val:1}), (:N {val:2})");
 
             // First time should not be loaded from execution cache
             var parameters = new Dictionary<string, object>();
             parameters.Put("val", 1L);
 
-            var resultSet = _api.GraphQuery("social", "MATCH (n:N {val:$val}) RETURN n.val", parameters);
+            var resultSet = _api.Query("social", "MATCH (n:N {val:$val}) RETURN n.val", parameters);
 
             Assert.Single(resultSet);
             Assert.Equal(parameters["val"], resultSet.First().Values[0]);
@@ -885,7 +850,7 @@ namespace NFalkorDB.Tests
             // from cache at least once
             for (int i = 0; i < 64; i++)
             {
-                resultSet = _api.GraphQuery("social", "MATCH (n:N {val:$val}) RETURN n.val", parameters);
+                resultSet = _api.Query("social", "MATCH (n:N {val:$val}) RETURN n.val", parameters);
             }
 
             Assert.Single(resultSet);
@@ -893,7 +858,6 @@ namespace NFalkorDB.Tests
             Assert.True(resultSet.Statistics.CachedExecution);
         }
 
-        // TODO: https://github.com/tombatron/NRedisGraph/issues/20
         [Fact]
         public void TestMapDataType()
         {
@@ -901,17 +865,19 @@ namespace NFalkorDB.Tests
             expected.Put("a", (long)1);
             expected.Put("b", "str");
             expected.Put("c", null);
-            var d = new List<long>();
-            d.Add(1);
-            d.Add(2);
-            d.Add(3);
+            var d = new List<long>
+            {
+                1,
+                2,
+                3
+            };
             expected.Put("d", d);
             expected.Put("e", true);
             var f = new Dictionary<string, object>();
             f.Put("x", (long)1);
             f.Put("y", (long)2);
             expected.Put("f", f);
-            ResultSet res = _api.GraphQuery("social", "RETURN {a:1, b:'str', c:NULL, d:[1,2,3], e:True, f:{x:1, y:2}}");
+            ResultSet res = _api.Query("social", "RETURN {a:1, b:'str', c:NULL, d:[1,2,3], e:True, f:{x:1, y:2}}");
             Assert.Single(res);
             // Record r = res.iterator().next();
             var something = res.First().Values[0];
@@ -919,59 +885,57 @@ namespace NFalkorDB.Tests
             Assert.Equal(expected, actual);
         }
 
-        // TODO: https://github.com/tombatron/NRedisGraph/issues/22
-        // [Fact]
-        // public void TestGeoPointLatLon() {
-        //     var rs = _api.GraphQuery("social", "CREATE (:restaurant"
-        //                                                + " {location: point({latitude:30.27822306, longitude:-97.75134723})})");
-        //     Assert.Equal(1, rs.Statistics.NodesCreated);
-        //     Assert.Equal(1, rs.Statistics.PropertiesSet);
-        //
-        //     AssertTestGeoPoint();
-        // }
-        //
-        // [Fact]
-        // public void TestGeoPointLonLat() {
-        //     var rs = _api.GraphQuery("social", "CREATE (:restaurant"
-        //                                                + " {location: point({longitude:-97.75134723, latitude:30.27822306})})");
-        //     Assert.Equal(1, rs.Statistics.NodesCreated);
-        //     Assert.Equal(1, rs.Statistics.PropertiesSet);
-        //
-        //     AssertTestGeoPoint();
-        // }
-        //
-        // private void AssertTestGeoPoint()
-        // {
-        //     var results = _api.GraphQuery("social", "MATCH (restaurant) RETURN restaurant");
-        //     
-        //     Assert.Single(results);
-        //
-        //     var record = results.First();
-        //     Assert.Equal(1, record.Size);
-        //     Assert.Equal(new[]{"restaurant"}, record.Keys);
-        //
-        //     var node = record.Values[0] as Node;
-        //     var property = node?.PropertyMap["location"] ?? null;
-        //     
-        //     Assert.Equal(new Point(30.27822306, -97.75134723), property.Value);
-        // }
+        [Fact]
+        public void TestGeoPointLatLon() {
+            var rs = _api.Query("social", "CREATE (:restaurant"
+                                                       + " {location: point({latitude:30.27822306, longitude:-97.75134723})})");
+            Assert.Equal(1, rs.Statistics.NodesCreated);
+            Assert.Equal(1, rs.Statistics.PropertiesSet);
+        
+            AssertTestGeoPoint();
+        }
+        
+        [Fact]
+        public void TestGeoPointLonLat() {
+            var rs = _api.Query("social", "CREATE (:restaurant"
+                                                       + " {location: point({longitude:-97.75134723, latitude:30.27822306})})");
+            Assert.Equal(1, rs.Statistics.NodesCreated);
+            Assert.Equal(1, rs.Statistics.PropertiesSet);
+        
+            AssertTestGeoPoint();
+        }
+        
+        private void AssertTestGeoPoint()
+        {
+            var results = _api.Query("social", "MATCH (restaurant) RETURN restaurant");
+            
+            Assert.Single(results);
+        
+            var record = results.First();
+            Assert.Equal(1, record.Size);
+            Assert.Equal(new[]{"restaurant"}, record.Keys);
+        
+            var node = record.Values[0] as Node;
+            var property = node?.PropertyMap["location"] ?? null;
+            
+            Assert.Equal(new Point(30.2782230377197, -97.751350402832), property.Value);
+        }
 
-        // TODO: https://github.com/tombatron/NRedisGraph/issues/23
-        // [Fact]
-        // public void TimeoutArgument() {
-        //     var rs = _api.GraphQuery("social", "UNWIND range(0,100) AS x WITH x AS x WHERE x = 100 RETURN x", 1L);
-        //     
-        //     Assert.Single(rs);
-        //
-        //     var r = rs.First();
-        //     
-        //     Assert.Equal(100L, r.GetValue<long>(0));
-        // }
+        [Fact]
+        public void TimeoutArgument() {
+            var rs = _api.Query("social", "UNWIND range(0,100) AS x WITH x AS x WHERE x = 100 RETURN x", timeout: 1L);
+            
+            Assert.Single(rs);
+        
+            var r = rs.First();
+            
+            Assert.Equal(100L, r.GetValue<long>(0));
+        }
 
         [Fact]
         public void TestCachedExecutionReadOnly()
         {
-            _api.GraphQuery("social", "CREATE (:N {val:1}), (:N {val:2})");
+            _api.Query("social", "CREATE (:N {val:1}), (:N {val:2})");
 
             // First time should not be loaded from execution cache
             var parameters = new Dictionary<string, object>();
@@ -998,7 +962,7 @@ namespace NFalkorDB.Tests
         [Fact]
         public void TestSimpleReadOnly()
         {
-            _api.GraphQuery("social", "CREATE (:person{name:'filipe',age:30})");
+            _api.Query("social", "CREATE (:person{name:'filipe',age:30})");
             var rsRo = _api.GraphReadOnlyQuery("social", "MATCH (a:person) WHERE (a.name = 'filipe') RETURN a.age");
             Assert.Single(rsRo);
             Assert.Equal(30L, rsRo.First().GetValue<long>(0));

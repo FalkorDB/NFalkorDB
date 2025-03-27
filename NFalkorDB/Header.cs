@@ -1,6 +1,4 @@
-using System;
 using System.Collections.Generic;
-using System.Linq;
 using StackExchange.Redis;
 
 namespace NFalkorDB
@@ -37,13 +35,6 @@ namespace NFalkorDB
         }
 
         /// <summary>
-        /// Collection of the schema types present in the header.
-        /// </summary>
-        /// <value></value>
-        [Obsolete("SchemaType is no longer supported after FalkorDB 2.1 and will always return COLUMN_SCALAR")]
-        public List<ResultSetColumnTypes> SchemaTypes { get; }
-
-        /// <summary>
         /// Collection of the schema names present in the header.
         /// </summary>
         /// <value></value>
@@ -51,12 +42,10 @@ namespace NFalkorDB
 
         internal Header(RedisResult result)
         {
-            SchemaTypes = new List<ResultSetColumnTypes>();
-            SchemaNames = new List<string>();
+            SchemaNames = [];
 
             foreach(RedisResult[] tuple in (RedisResult[])result)
             {
-                SchemaTypes.Add((ResultSetColumnTypes)(int)tuple[0]);
                 SchemaNames.Add((string)tuple[1]);
             }
         }
@@ -75,11 +64,10 @@ namespace NFalkorDB
                 return false;
             }
 
-            return Objects.AreEqual(SchemaTypes, header.SchemaTypes)
-                   && Objects.AreEqual(SchemaNames, header.SchemaNames);
+            return Objects.AreEqual(SchemaNames, header.SchemaNames);
         }
 
         public override string ToString() =>
-            $"Header{{schemaTypes=[{string.Join(", ", SchemaTypes)}], schemaNames=[{string.Join(", ", SchemaNames)}]}}";
+            $"Header{{schemaNames=[{string.Join(", ", SchemaNames)}]}}";
     }
 }
