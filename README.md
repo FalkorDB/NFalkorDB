@@ -31,10 +31,6 @@ If FalkorDB is installed you should see output similar to the following:
 
 (The version of the module installed on your server obviously may vary.)
 
-## Extras
-
-* Adds support for the [`LOLWUT`](https://redis.io/commands/lolwut/) Redis command by introducing extension methods to the `IDatabase`.
-
 ## Examples
 
 In this repository there are a suite of integration tests that should be sufficient to serve as examples on how to use all supported FalkorDB commands.
