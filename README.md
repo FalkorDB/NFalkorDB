@@ -10,7 +10,7 @@ The intent of this library is to duplicate the API (as much as possible) of the 
 
 ## Installation
 
-`PM> Install-Package NFalkorDB -Version 1.9.0`
+`PM> Install-Package NFalkorDB -Version 1.0.0`
 
 ## Usage
 
