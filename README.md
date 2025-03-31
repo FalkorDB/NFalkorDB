@@ -1,3 +1,4 @@
+![FalkorDB Official  NET support-04-25](https://github.com/user-attachments/assets/659113e1-7e5b-433a-8a1d-199324278e22)
 [![Discord](https://img.shields.io/discord/1146782921294884966?style=flat-square)](https://discord.gg/ErBEqN9E)
 [![license](https://img.shields.io/github/license/FalkorDB/NFalkorDB.svg)](https://github.com/FalkorDB/NFalkorDB/blob/master/LICENSE)
 [![Release](https://img.shields.io/github/release/FalkorDB/NFalkorDB.svg)](https://github.com/FalkorDB/NFalkorDB/releases/latest)
@@ -7,39 +8,40 @@
 
 [![Try Free](https://img.shields.io/badge/Try%20Free-FalkorDB%20Cloud-FF8101?labelColor=FDE900&style=for-the-badge&link=https://app.falkordb.cloud)](https://app.falkordb.cloud)
 
-## Overview
+## What is NFalkorDB?
 
-NFalkorDB is a series of extensions methods for the [StackExchange.Redis](https://github.com/StackExchange/StackExchange.Redis) library that will enable you to interact with the [Redis](https://redis.io) module [FalkorDB](https://www.falkordb.com). This is made possible by the `Execute` and `ExecuteAsync` methods already present in the StackExchange.Redis library.
+**NFalkorDB** extends [StackExchange.Redis](https://github.com/StackExchange/StackExchange.Redis) with a .NET-friendly API for working with the [FalkorDB](https://www.falkordb.com) Redis module—bringing graph-native commands into your C# projects with ease.
 
-The intent of this library is to duplicate the API (as much as possible) of the FalkorDB module support found embedded in the [Jedis](https://github.com/xetorthio/jedis) library.
+Built on top of the native `Execute` and `ExecuteAsync` methods, NFalkorDB offers a set of extension methods that mirrors the command structure of [Jedis](https://github.com/xetorthio/jedis)'s FalkorDB support, giving you familiar, fluent access to graph operations.
 
-## Installation
+## Install
 
-`PM> Install-Package NFalkorDB -Version 1.0.0`
+```
+PM> Install-Package NFalkorDB -Version 1.0.0
+```
+## Prerequisites
+Before using NFalkorDB, ensure the FalkorDB module is installed on your Redis server.
 
+To verify:
+```
+MODULE LIST
+```
+
+Expected output (version may vary):
+```
+1) "name"
+2) "graph"
+3) "ver"
+4) 4) (integer) 20811
+```
 ## Usage
+NFalkorDB exposes FalkorDB commands as C# extension methods through StackExchange.Redis.
 
-I'm assuming that you already have the [FalkorDB](https://docs.falkordb.com/) module installed on your Redis server.
+For real-world usage and supported operations, see our integration tests:
 
-You can verify that the module is installed by executing the following command:
+👉 [NFalkorDBAPITest.cs](https://github.com/falkordb/NFalkorDB/blob/master/NFalkorDB.Tests/FalkorDBAPITest.cs)
 
-`MODULE LIST`
-
-If FalkorDB is installed you should see output similar to the following:
-
-```
-1) 1) "name"
-   2) "graph"
-   3) "ver"
-   4) (integer) 20811
-```
-
-(The version of the module installed on your server obviously may vary.)
-
-## Examples
-
-In this repository there are a suite of integration tests that should be sufficient to serve as examples on how to use all supported FalkorDB commands.
-
+These tests cover core functionality, including querying, creating, updating, and deleting graph data.
 [Integration Tests](https://github.com/falkordb/NFalkorDB/blob/master/NFalkorDB.Tests/FalkorDBAPITest.cs)
 
 ## License
