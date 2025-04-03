@@ -20,22 +20,45 @@ Built on top of the native `Execute` and `ExecuteAsync` methods, NFalkorDB offer
 PM> Install-Package NFalkorDB -Version 1.0.0
 ```
 ## Prerequisites
+
 Before using NFalkorDB, ensure the FalkorDB module is installed on your Redis server.
 
 To verify:
+
 ```
 MODULE LIST
 ```
 
 Expected output (version may vary):
+
 ```
 1) "name"
 2) "graph"
 3) "ver"
 4) 4) (integer) 20811
 ```
+
 ## Usage
+
 NFalkorDB exposes FalkorDB commands as C# extension methods through StackExchange.Redis.
+
+### Getting Started
+
+```c#
+  // Connect the database and pick a Graph
+  ConnectionMultiplexer muxr = ConnectionMultiplexer.Connect(ConnectionString).
+  Graph graph = new FalkorDB(muxr.GetDatabase()).SelectGraph("social");
+
+  // Create the Graph
+  graph.Query("""CREATE (:Rider {name:'Valentino Rossi'})-[:rides]->(:Team {name:'Yamaha'}),
+           (:Rider {name:'Dani Pedrosa'})-[:rides]->(:Team {name:'Honda'}),
+           (:Rider {name:'Andrea Dovizioso'})-[:rides]->(:Team {name:'Ducati'})""");
+
+  // Query the Graph
+  ResultSet resultSet = graph.ReadOnlyQuery("MATCH (a:person)-[r:knows]->(b:person) RETURN a, r, b");
+```
+
+### More examples
 
 For real-world usage and supported operations, see our integration tests:
 
