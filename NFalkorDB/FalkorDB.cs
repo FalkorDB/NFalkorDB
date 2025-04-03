@@ -15,7 +15,17 @@ public sealed class FalkorDB
     /// Creates a FalkorDB client that leverages a specified instance of `IDatabase`.
     /// </summary>
     /// <param name="db"></param>
-    public FalkorDB(IDatabase db) => _db = db;
+    public FalkorDB(IDatabase db = null)
+    {
+        if (db == null)
+        {
+            _db = ConnectionMultiplexer.Connect("localhost").GetDatabase();
+        }
+        else
+        {
+            _db = db;
+        }
+    }
 
     /// <summary>
     /// Selects a graph by its ID.
