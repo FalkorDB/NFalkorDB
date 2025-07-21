@@ -21,7 +21,7 @@
   </PropertyGroup>  
 
   <ItemGroup>
-    <PackageReference Include="StackExchange.Redis" Version="2.*" />
+    <PackageReference Include="StackExchange.Redis" Version="2.8.47" />
     <PackageReference Include="Microsoft.Bcl.HashCode" Version="6.*" />
   </ItemGroup>
 
@@ -32,7 +32,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Include="..\README.md" Pack="true" PackagePath="\"/>
+    <None Include="..\README.md" Pack="true" PackagePath="\" />
     <None Include="license\license.txt" Pack="true" PackagePath="$(PackageLicenseFile)" />
   </ItemGroup>
 </Project>
