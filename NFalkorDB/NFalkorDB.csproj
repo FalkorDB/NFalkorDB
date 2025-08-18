@@ -21,7 +21,7 @@
   </PropertyGroup>  
 
   <ItemGroup>
-    <PackageReference Include="StackExchange.Redis" Version="2.*" />
+    <PackageReference Include="StackExchange.Redis" Version="2.8.58" />
     <PackageReference Include="Microsoft.Bcl.HashCode" Version="6.*" />
   </ItemGroup>
 
