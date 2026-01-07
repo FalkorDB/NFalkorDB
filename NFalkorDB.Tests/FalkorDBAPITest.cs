@@ -72,7 +72,7 @@ public class FalkorDBAPITest : BaseTest
         Assert.Equal("1", resultSet.Statistics.GetStringValue(Label.NodesCreated));
         Assert.Equal("2", resultSet.Statistics.GetStringValue(Label.PropertiesSet));
         Assert.NotNull(resultSet.Statistics.GetStringValue(Label.QueryInternalExecutionTime));
-    }        
+    }
 
     [Fact]
     public void TestConnectNodes()
@@ -159,7 +159,7 @@ public class FalkorDBAPITest : BaseTest
         Assert.NotNull(createNonExistingIndexResult.Statistics.GetStringValue(Label.IndicesCreated));
         Assert.Equal(1, createNonExistingIndexResult.Statistics.IndicesCreated);
 
-        var exception = Assert.Throws<RedisServerException>(() => 
+        var exception = Assert.Throws<RedisServerException>(() =>
             _api.Query("CREATE INDEX ON :person(age)")
         );
         Assert.Contains("Attribute 'age' is already indexed", exception.Message);
@@ -284,7 +284,7 @@ public class FalkorDBAPITest : BaseTest
         edge = record.GetValue<Edge>("r");
         Assert.Equal(expectedEdge, edge);
 
-        Assert.Equal(new[] {"a", "r", "a.name", "a.age", "a.doubleValue", "a.boolValue", "a.nullValue", "r.place", "r.since", "r.doubleValue", "r.boolValue", "r.nullValue"}, record.Keys);
+        Assert.Equal(new[] { "a", "r", "a.name", "a.age", "a.doubleValue", "a.boolValue", "a.nullValue", "r.place", "r.since", "r.doubleValue", "r.boolValue", "r.nullValue" }, record.Keys);
 
         Assert.Equal([expectedNode, expectedEdge, name, age, doubleValue, true, null, place, since, doubleValue, false, null], record.Values);
 
@@ -344,7 +344,7 @@ public class FalkorDBAPITest : BaseTest
             Assert.Equal("a.age", schemaNames[2]);
             Assert.Single(resultSet);
             Record record = resultSet.First();
-            Assert.Equal(new[] {"a", "r", "a.age"}, record.Keys);
+            Assert.Equal(new[] { "a", "r", "a.age" }, record.Keys);
             Assert.Equal([expectedNode, expectedEdge, 32L], record.Values);
         }
 
@@ -378,7 +378,7 @@ public class FalkorDBAPITest : BaseTest
             Assert.Equal("r", schemaNames[1]);
             Assert.Single(resultSet);
             Record record = resultSet.First();
-            Assert.Equal(new[] {"a", "r"}, record.Keys);
+            Assert.Equal(new[] { "a", "r" }, record.Keys);
             Assert.Equal([expectedNode, expectedEdge], record.Values);
         }
     }
@@ -419,7 +419,7 @@ public class FalkorDBAPITest : BaseTest
         Assert.Equal("r", schemaNames[1]);
         Assert.Single(resultSet);
         Record record = resultSet.First();
-        Assert.Equal(new[] {"a", "r"}, record.Keys);
+        Assert.Equal(new[] { "a", "r" }, record.Keys);
         Assert.Equal([expectedNode, expectedEdge], record.Values);
 
         //test for local cache updates
@@ -447,7 +447,7 @@ public class FalkorDBAPITest : BaseTest
         Assert.Equal("r", schemaNames[1]);
         Assert.Single(resultSet);
         record = resultSet.First();
-        Assert.Equal(new[] {"a", "r"}, record.Keys);
+        Assert.Equal(new[] { "a", "r" }, record.Keys);
         Assert.Equal([expectedNode, expectedEdge], record.Values);
     }
 
@@ -466,7 +466,7 @@ public class FalkorDBAPITest : BaseTest
             { "s1", "S\"'" },
             { "s2", "S'\"" }
         };
-        
+
         Assert.NotNull(_api.Query("CREATE (:escaped{s1:$s1,s2:$s2})", params1));
 
         var params2 = new Dictionary<string, object>
@@ -499,7 +499,7 @@ public class FalkorDBAPITest : BaseTest
         expectedANode.AddLabel("person");
         var aNameProperty = new Property("name", "a");
         var aAgeProperty = new Property("age", 32L);
-        var aListProperty = new Property("array", new object[] {0L, 1L, 2L});
+        var aListProperty = new Property("array", new object[] { 0L, 1L, 2L });
         expectedANode.AddProperty(aNameProperty);
         expectedANode.AddProperty(aAgeProperty);
         expectedANode.AddProperty(aListProperty);
@@ -509,7 +509,7 @@ public class FalkorDBAPITest : BaseTest
         expectedBNode.AddLabel("person");
         var bNameProperty = new Property("name", "b");
         var bAgeProperty = new Property("age", 30L);
-        var bListProperty = new Property("array", new object[] {3L, 4L, 5L});
+        var bListProperty = new Property("array", new object[] { 3L, 4L, 5L });
         expectedBNode.AddProperty(bNameProperty);
         expectedBNode.AddProperty(bAgeProperty);
         expectedBNode.AddProperty(bListProperty);
@@ -536,7 +536,7 @@ public class FalkorDBAPITest : BaseTest
         // check record
         Assert.Single(resultSet);
         var record = resultSet.First();
-        Assert.Equal(new[] {"x"}, record.Keys);
+        Assert.Equal(new[] { "x" }, record.Keys);
 
         var x = record.GetValue<object[]>("x");
         Assert.Equal([0L, 1L, 2L], x);
@@ -558,7 +558,7 @@ public class FalkorDBAPITest : BaseTest
         // check record
         Assert.Single(resultSet);
         record = resultSet.First();
-        Assert.Equal(new[] {"x"}, record.Keys);
+        Assert.Equal(new[] { "x" }, record.Keys);
         x = record.GetValue<object[]>("x");
 
         Assert.Contains(expectedANode, x);
@@ -585,7 +585,7 @@ public class FalkorDBAPITest : BaseTest
         {
             record = resultSet.ElementAt(i);
 
-            Assert.Equal(new[] {"x"}, record.Keys);
+            Assert.Equal(new[] { "x" }, record.Keys);
             Assert.Equal(i, record.GetValue<long>("x"));
         }
     }
@@ -699,7 +699,7 @@ public class FalkorDBAPITest : BaseTest
         // Test a query that produces 1 record with 3 null values.
         ResultSet resultSet = _api.Query("OPTIONAL MATCH (a:NONEXISTENT)-[e]->(b) RETURN a, e, b");
         Assert.Single(resultSet);
-        Assert.Equal(new object[] {null, null, null}, resultSet.First().Values);
+        Assert.Equal(new object[] { null, null, null }, resultSet.First().Values);
 
         // Test a query that produces 2 records, with 2 null values in the second.
         resultSet = _api.Query("MATCH (a) OPTIONAL MATCH (a)-[e]->(b) RETURN a, e, b ORDER BY ID(a)");
@@ -809,49 +809,52 @@ public class FalkorDBAPITest : BaseTest
     }
 
     [Fact]
-    public void TestGeoPointLatLon() {
+    public void TestGeoPointLatLon()
+    {
         var rs = _api.Query("CREATE (:restaurant"
                                                    + " {location: point({latitude:30.27822306, longitude:-97.75134723})})");
         Assert.Equal(1, rs.Statistics.NodesCreated);
         Assert.Equal(1, rs.Statistics.PropertiesSet);
-    
+
         AssertTestGeoPoint();
     }
-    
+
     [Fact]
-    public void TestGeoPointLonLat() {
+    public void TestGeoPointLonLat()
+    {
         var rs = _api.Query("CREATE (:restaurant"
                                                    + " {location: point({longitude:-97.75134723, latitude:30.27822306})})");
         Assert.Equal(1, rs.Statistics.NodesCreated);
         Assert.Equal(1, rs.Statistics.PropertiesSet);
-    
+
         AssertTestGeoPoint();
     }
-    
+
     private void AssertTestGeoPoint()
     {
         var results = _api.Query("MATCH (restaurant) RETURN restaurant");
-        
+
         Assert.Single(results);
-    
+
         var record = results.First();
         Assert.Equal(1, record.Size);
-        Assert.Equal(new[]{"restaurant"}, record.Keys);
-    
+        Assert.Equal(new[] { "restaurant" }, record.Keys);
+
         var node = record.Values[0] as Node;
         var property = node?.PropertyMap["location"] ?? null;
-        
+
         Assert.Equal(new Point(30.2782230377197, -97.751350402832), property.Value);
     }
 
     [Fact]
-    public void TimeoutArgument() {
+    public void TimeoutArgument()
+    {
         var rs = _api.Query("UNWIND range(0,100) AS x WITH x AS x WHERE x = 100 RETURN x", timeout: 1L);
-        
+
         Assert.Single(rs);
-    
+
         var r = rs.First();
-        
+
         Assert.Equal(100L, r.GetValue<long>(0));
     }
 
@@ -891,6 +894,23 @@ public class FalkorDBAPITest : BaseTest
         var rsRo = _api.ReadOnlyQuery("MATCH (a:person) WHERE (a.name = 'filipe') RETURN a.age");
         Assert.Single(rsRo);
         Assert.Equal(30L, rsRo.First().GetValue<long>(0));
+    }
+
+    class DictionaryComparer : IEqualityComparer<Dictionary<string, object>>
+    {
+        public bool Equals(Dictionary<string, object> x, Dictionary<string, object> y)
+        {
+            return x.Count == y.Count && x.Keys.All(k => y.ContainsKey(k) && Equals(x[k], y[k]));
+        }
+        public int GetHashCode(Dictionary<string, object> obj) => obj.Count;
+    }
+
+    [Fact]
+    public void TestMapParameter()
+    {
+        var value = new Dictionary<string, object> { ["a"] = 1L, ["b"] = "str", ["c"] = null };
+        var res = _api.Query("RETURN $a", new Dictionary<string, object> { ["a"] = value });
+        Assert.Equal(res.First().GetValue<Dictionary<string, object>>(0), value, new DictionaryComparer());
     }
 
     public static object[][] TestParameterValues =
