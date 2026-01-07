@@ -94,6 +94,24 @@ internal static class FalkorDBUtilities
             return boolValue.ToString().ToLowerInvariant();
         }
 
+        if (value is IDictionary<string, object> dictValue)
+        {
+            var dictElements = dictValue.Select(kv =>
+            {
+                var keyString = kv.Key;
+                var valueString = ValueToString(kv.Value);
+                return $"{keyString}: {valueString}";
+            });
+
+            var dictToString = new StringBuilder();
+
+            dictToString.Append('{');
+            dictToString.Append(string.Join(", ", dictElements));
+            dictToString.Append('}');
+
+            return dictToString.ToString();
+        }
+
         if (value is IConvertible floatValue)
         {
             return ConvertibleToString(floatValue);
