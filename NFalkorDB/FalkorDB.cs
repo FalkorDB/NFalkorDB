@@ -119,15 +119,28 @@ public sealed class FalkorDB
             throw new ArgumentException("Configuration name must be provided.", nameof(name));
         }
 
-        var result = _db.Execute(Command.CONFIG, new object[] { "GET", name }, flags);
-
-        if (result.Resp2Type != ResultType.Array)
+        try
         {
+            var result = _db.Execute(Command.CONFIG, new object[] { "GET", name }, flags);
+
+            if (result.Resp2Type != ResultType.Array)
+            {
+                return null;
+            }
+
+            var arr = (RedisResult[])result;
+            return arr.Length == 2 ? (string)arr[1] : null;
+        }
+        catch (RedisServerException)
+        {
+            // GRAPH.CONFIG may not be supported or may respond in an unexpected way; treat as no value.
             return null;
         }
-
-        var arr = (RedisResult[])result;
-        return arr.Length == 2 ? (string)arr[1] : null;
+        catch (RedisConnectionException)
+        {
+            // Connection-level issues should not bring down the caller; treat as no value.
+            return null;
+        }
     }
 
     /// <summary>
@@ -141,15 +154,26 @@ public sealed class FalkorDB
             throw new ArgumentException("Configuration name must be provided.", nameof(name));
         }
 
-        var result = await _db.ExecuteAsync(Command.CONFIG, new object[] { "GET", name }, flags).ConfigureAwait(false);
+        try
+        {
+            var result = await _db.ExecuteAsync(Command.CONFIG, new object[] { "GET", name }, flags).ConfigureAwait(false);
 
-        if (result.Resp2Type != ResultType.Array)
+            if (result.Resp2Type != ResultType.Array)
+            {
+                return null;
+            }
+
+            var arr = (RedisResult[])result;
+            return arr.Length == 2 ? (string)arr[1] : null;
+        }
+        catch (RedisServerException)
         {
             return null;
         }
-
-        var arr = (RedisResult[])result;
-        return arr.Length == 2 ? (string)arr[1] : null;
+        catch (RedisConnectionException)
+        {
+            return null;
+        }
     }
 
     /// <summary>
