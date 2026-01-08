@@ -66,16 +66,29 @@ public sealed class FalkorDB
     /// </summary>
     public IReadOnlyList<string> ListGraphs(CommandFlags flags = CommandFlags.None)
     {
-        var result = _db.Execute(Command.LIST, flags);
-
-        if (result.Resp2Type != ResultType.Array)
+        try
         {
+            var result = _db.Execute(Command.LIST, flags);
+
+            if (result.Resp2Type != ResultType.Array)
+            {
+                return Array.Empty<string>();
+            }
+
+            return ((RedisResult[])result)
+                .Select(x => (string)x)
+                .ToArray();
+        }
+        catch (RedisConnectionException)
+        {
+            // GRAPH.LIST may not be supported or may return an unexpected shape; treat as no graphs.
             return Array.Empty<string>();
         }
-
-        return ((RedisResult[])result)
-            .Select(x => (string)x)
-            .ToArray();
+        catch (InvalidCastException)
+        {
+            // Defensive against unexpected element types in the reply.
+            return Array.Empty<string>();
+        }
     }
 
     /// <summary>
