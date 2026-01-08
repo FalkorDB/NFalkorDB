@@ -19,14 +19,48 @@ public class FalkorDBAPITest : BaseTest
     {
     }
 
+    [Fact]
+    public void CanConstructFromConfigurationStringAndListGraphsAndConfig()
+    {
+        // Use the same Redis connection string as BaseTest
+        var client = new FalkorDB(RedisConnectionString);
+
+        // create a graph to ensure GRAPH.LIST is exercised
+        var graph = client.SelectGraph("phase1_list_graphs");
+        graph.Query("RETURN 1");
+
+        var graphs = client.ListGraphs();
+        // Depending on server/module version, GRAPH.LIST contents may vary; just ensure the call succeeds.
+        Assert.NotNull(graphs);
+
+        // round-trip a config value (where allowed)
+        // for safety, just GET a common configuration key
+        var timeoutConfig = client.GetConfig("TIMEOUT_MS");
+        // value may be null or numeric depending on server config, but call should not throw
+    }
+
     protected override void BeforeTest()
     {
-        _muxr = ConnectionMultiplexer.Connect(RedisConnectionString);
+        const int maxAttempts = 3;
+        var attempt = 0;
 
-        _muxr.GetDatabase().Execute("FLUSHDB");
+        while (true)
+        {
+            try
+            {
+                _muxr = ConnectionMultiplexer.Connect(RedisConnectionString);
+                _muxr.GetDatabase().Execute("FLUSHDB");
 
-        _api = new FalkorDB(_muxr.GetDatabase(0)).SelectGraph("social");
-        _whatever = new FalkorDB(_muxr.GetDatabase(0)).SelectGraph("whatever");
+                _api = new FalkorDB(_muxr.GetDatabase(0)).SelectGraph("social");
+                _whatever = new FalkorDB(_muxr.GetDatabase(0)).SelectGraph("whatever");
+                break;
+            }
+            catch (RedisConnectionException) when (++attempt < maxAttempts)
+            {
+                // Transient socket/connection error: retry a few times.
+                System.Threading.Thread.Sleep(200 * attempt);
+            }
+        }
     }
 
     protected override void AfterTest()
