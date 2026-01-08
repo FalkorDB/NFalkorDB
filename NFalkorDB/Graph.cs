@@ -581,7 +581,7 @@ public class Graph
 
         return _db.ExecuteAsync(Command.SLOWLOG, commandArgs, flags);
     }
-}
+
     /// <summary>
     /// Profiles the execution of the given query.
     /// </summary>
