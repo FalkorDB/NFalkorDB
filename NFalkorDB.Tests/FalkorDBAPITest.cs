@@ -204,6 +204,30 @@ public class FalkorDBAPITest : BaseTest
     }
 
     [Fact]
+    public void TestIndexHelpersCreateAndDropNodeRange()
+    {
+        Assert.NotNull(_api.Query("CREATE (:person{name:'roi',age:32})"));
+
+        var createResult = _api.CreateNodeRangeIndex("person", "age");
+        Assert.Equal(1, createResult.Statistics.IndicesCreated);
+
+        var dropResult = _api.DropNodeRangeIndex("person", "age");
+        Assert.Equal(1, dropResult.Statistics.IndicesDeleted);
+    }
+
+    [Fact]
+    public void TestIndexHelpersListIndices()
+    {
+        Assert.NotNull(_api.Query("CREATE (:person{name:'roi',age:32})"));
+
+        _api.CreateNodeRangeIndex("person", "age");
+
+        var indicesResult = _api.ListIndices();
+        // Shape is server-dependent; just ensure the call succeeds and returns a header
+        Assert.NotNull(indicesResult);
+    }
+
+    [Fact]
     public void TestHeader()
     {
         Assert.NotNull(_api.Query("CREATE (:person{name:'roi',age:32})"));
@@ -951,4 +975,52 @@ public class FalkorDBAPITest : BaseTest
         [new List<long> {1, 2, 3}.Select(n => new object[] {n, n.ToString()}).ToArray()],
         [new List<long> {1, 2, 3}.Select(n => new List<object> {n, n.ToString()}).ToList()]
     ];
+
+    [Fact]
+    public void TestGraphCopy()
+    {
+        // create some data in the original graph
+        _api.Query("CREATE (:Person {name:'roi'})");
+
+        var cloned = new FalkorDB(_muxr.GetDatabase(0)).SelectGraph("social_copy_phase2");
+        // use the new Copy API
+        cloned = _api.Copy("social_copy_phase2");
+
+        var originalCount = _api.Query("MATCH (n:Person) RETURN count(n)");
+        var clonedCount = cloned.Query("MATCH (n:Person) RETURN count(n)");
+
+        Assert.Equal(originalCount.First().GetValue<long>(0), clonedCount.First().GetValue<long>(0));
+    }
+
+    [Fact]
+    public void TestExplainAndProfile()
+    {
+        _api.Query("CREATE (:Person {name:'roi'})");
+
+        var explainPlan = _api.Explain("MATCH (n:Person) RETURN n");
+        Assert.NotEmpty(explainPlan);
+
+        var profilePlan = _api.Profile("MATCH (n:Person) RETURN n");
+        Assert.NotEmpty(profilePlan);
+    }
+
+    [Fact]
+    public void TestSlowlogAndReset()
+    {
+        // generate some activity
+        for (int i = 0; i < 5; i++)
+        {
+            _api.Query("RETURN 1");
+        }
+
+        var entries = _api.Slowlog();
+        // implementation-dependent, but call should succeed
+        Assert.NotNull(entries);
+
+        _api.SlowlogReset();
+
+        // after reset, call should still succeed
+        var afterReset = _api.Slowlog();
+        Assert.NotNull(afterReset);
+    }
 }
