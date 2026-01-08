@@ -50,6 +50,15 @@ internal class GraphCacheList
         _data = newData;
     }
 
+    internal void Refresh()
+    {
+        lock (_locker)
+        {
+            _data = null;
+            GetProcedureInfo();
+        }
+    }
+
     protected virtual ResultSet CallProcedure() =>
         Graph.CallProcedure(Procedure);
 }
