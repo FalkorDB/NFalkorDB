@@ -894,6 +894,42 @@ public class FalkorDBAPITest : BaseTest
         Assert.Equal(expected, actual);
     }
 
+    [Fact(Skip = "Temporal scalar functions are not yet supported by the FalkorDB version used in tests")]
+    public void TestTemporalScalars()
+    {
+        // Use explicit temporal constructors so the values are deterministic.
+        var rs = _api.Query(
+            "RETURN " +
+            "datetime('2015-06-24T12:50:35.556Z') as dt, " +
+            "date('2015-06-24') as d, " +
+            "time('12:34:56.789') as t, " +
+            "duration({hours:1, minutes:2, seconds:3, milliseconds:4}) as du");
+
+        Assert.Single(rs);
+        var record = rs.First();
+
+        var dt = record.GetValue<DateTime>(0);
+        var d = record.GetValue<DateTime>(1);
+        var t = record.GetValue<TimeSpan>(2);
+        var du = record.GetValue<TimeSpan>(3);
+
+        // datetime is mapped from Unix millis to UTC DateTime
+        var expectedDateTime = new DateTime(2015, 6, 24, 12, 50, 35, 556, DateTimeKind.Utc);
+        Assert.Equal(expectedDateTime, dt);
+
+        // date is mapped to a DateTime whose Date component matches
+        var expectedDate = new DateTime(2015, 6, 24).Date;
+        Assert.Equal(expectedDate, d.Date);
+
+        // time is mapped to a TimeSpan since midnight
+        var expectedTime = new TimeSpan(0, 12, 34, 56, 789);
+        Assert.Equal(expectedTime, t);
+
+        // duration is mapped to a TimeSpan representing the interval
+        var expectedDuration = new TimeSpan(0, 1, 2, 3, 4);
+        Assert.Equal(expectedDuration, du);
+    }
+
     [Fact]
     public void TestGeoPointLatLon()
     {
