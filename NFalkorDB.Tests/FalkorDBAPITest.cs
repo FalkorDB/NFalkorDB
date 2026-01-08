@@ -19,6 +19,25 @@ public class FalkorDBAPITest : BaseTest
     {
     }
 
+    [Fact]
+    public void CanConstructFromConfigurationStringAndListGraphsAndConfig()
+    {
+        // Use the same Redis connection string as BaseTest
+        var client = new FalkorDB(RedisConnectionString);
+
+        // create a graph to ensure GRAPH.LIST returns something
+        var graph = client.SelectGraph("phase1_list_graphs");
+        graph.Query("RETURN 1");
+
+        var graphs = client.ListGraphs();
+        Assert.Contains("phase1_list_graphs", graphs);
+
+        // round-trip a config value (where allowed)
+        // for safety, just GET a common configuration key
+        var timeoutConfig = client.GetConfig("TIMEOUT_MS");
+        // value may be null or numeric depending on server config, but call should not throw
+    }
+
     protected override void BeforeTest()
     {
         _muxr = ConnectionMultiplexer.Connect(RedisConnectionString);
