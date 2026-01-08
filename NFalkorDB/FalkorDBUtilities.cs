@@ -156,7 +156,7 @@ internal static class FalkorDBUtilities
         var quotedString = new StringBuilder(unquotedString.Length + 12);
 
         quotedString.Append('"');
-        quotedString.Append(unquotedString.Replace("\"", "\\\""));
+        quotedString.Append(unquotedString.Replace("\\", "\\\\").Replace("\"", "\\\""));
         quotedString.Append('"');
 
         return quotedString.ToString();
