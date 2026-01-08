@@ -573,6 +573,140 @@ public class Graph
     public ResultSet ListIndices(CommandFlags flags = CommandFlags.None) =>
         CallProcedure("db.indexes", flags: flags);
 
+    // Constraint helpers
+
+    private ResultSet CreateConstraint(string constraintType, string entityType, string labelOrRelation, params string[] properties)
+    {
+        if (string.IsNullOrWhiteSpace(constraintType))
+        {
+            throw new System.ArgumentException("Constraint type must be provided.", nameof(constraintType));
+        }
+
+        if (string.IsNullOrWhiteSpace(entityType))
+        {
+            throw new System.ArgumentException("Entity type must be provided.", nameof(entityType));
+        }
+
+        if (string.IsNullOrWhiteSpace(labelOrRelation))
+        {
+            throw new System.ArgumentException("Label or relation must be provided.", nameof(labelOrRelation));
+        }
+
+        if (properties == null || properties.Length == 0)
+        {
+            throw new System.ArgumentException("At least one property must be provided.", nameof(properties));
+        }
+
+        var args = new List<object>
+        {
+            Command.CONSTRAINT,
+            "CREATE",
+            _graphId,
+            constraintType,
+            entityType,
+            labelOrRelation,
+            "PROPERTIES",
+            properties.Length
+        };
+
+        args.AddRange(properties);
+
+        var result = _db.Execute((string)args[0], args.Skip(1).ToArray());
+        return new ResultSet(result, null);
+    }
+
+    private ResultSet DropConstraint(string constraintType, string entityType, string labelOrRelation, params string[] properties)
+    {
+        if (string.IsNullOrWhiteSpace(constraintType))
+        {
+            throw new System.ArgumentException("Constraint type must be provided.", nameof(constraintType));
+        }
+
+        if (string.IsNullOrWhiteSpace(entityType))
+        {
+            throw new System.ArgumentException("Entity type must be provided.", nameof(entityType));
+        }
+
+        if (string.IsNullOrWhiteSpace(labelOrRelation))
+        {
+            throw new System.ArgumentException("Label or relation must be provided.", nameof(labelOrRelation));
+        }
+
+        if (properties == null || properties.Length == 0)
+        {
+            throw new System.ArgumentException("At least one property must be provided.", nameof(properties));
+        }
+
+        var args = new List<object>
+        {
+            Command.CONSTRAINT,
+            "DROP",
+            _graphId,
+            constraintType,
+            entityType,
+            labelOrRelation,
+            "PROPERTIES",
+            properties.Length
+        };
+
+        args.AddRange(properties);
+
+        var result = _db.Execute((string)args[0], args.Skip(1).ToArray());
+        return new ResultSet(result, null);
+    }
+
+    public ResultSet CreateNodeUniqueConstraint(string label, params string[] properties)
+    {
+        // ensure supporting range index exists (ignore errors if already present)
+        try
+        {
+            CreateNodeRangeIndex(label, properties);
+        }
+        catch
+        {
+            // ignore index creation errors
+        }
+
+        return CreateConstraint("UNIQUE", "NODE", label, properties);
+    }
+
+    public ResultSet CreateEdgeUniqueConstraint(string relation, params string[] properties)
+    {
+        try
+        {
+            CreateEdgeRangeIndex(relation, properties);
+        }
+        catch
+        {
+        }
+
+        return CreateConstraint("UNIQUE", "RELATIONSHIP", relation, properties);
+    }
+
+    public ResultSet CreateNodeMandatoryConstraint(string label, params string[] properties) =>
+        CreateConstraint("MANDATORY", "NODE", label, properties);
+
+    public ResultSet CreateEdgeMandatoryConstraint(string relation, params string[] properties) =>
+        CreateConstraint("MANDATORY", "RELATIONSHIP", relation, properties);
+
+    public ResultSet DropNodeUniqueConstraint(string label, params string[] properties) =>
+        DropConstraint("UNIQUE", "NODE", label, properties);
+
+    public ResultSet DropEdgeUniqueConstraint(string relation, params string[] properties) =>
+        DropConstraint("UNIQUE", "RELATIONSHIP", relation, properties);
+
+    public ResultSet DropNodeMandatoryConstraint(string label, params string[] properties) =>
+        DropConstraint("MANDATORY", "NODE", label, properties);
+
+    public ResultSet DropEdgeMandatoryConstraint(string relation, params string[] properties) =>
+        DropConstraint("MANDATORY", "RELATIONSHIP", relation, properties);
+
+    /// <summary>
+    /// Lists graph constraints using the DB.CONSTRAINTS procedure.
+    /// </summary>
+    public ResultSet ListConstraints(CommandFlags flags = CommandFlags.None) =>
+        CallProcedure("DB.CONSTRAINTS", flags: flags);
+
     /// <summary>
     /// Returns the current slowlog entries for this graph.
     /// </summary>
@@ -740,5 +874,4 @@ public class Graph
             .Select(x => (string)x)
             .ToArray();
     }
-
 }

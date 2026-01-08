@@ -11,8 +11,9 @@ internal static class Command
     internal const string CONFIG   = "graph.CONFIG";
 
     // Phase 2: Graph-level commands
-    internal const string COPY     = "graph.COPY";
-    internal const string EXPLAIN  = "graph.EXPLAIN";
-    internal const string PROFILE  = "graph.PROFILE";
-    internal const string SLOWLOG  = "graph.SLOWLOG";
+    internal const string COPY       = "graph.COPY";
+    internal const string EXPLAIN    = "graph.EXPLAIN";
+    internal const string PROFILE    = "graph.PROFILE";
+    internal const string SLOWLOG    = "graph.SLOWLOG";
+    internal const string CONSTRAINT = "graph.CONSTRAINT";
 }

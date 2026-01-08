@@ -204,6 +204,34 @@ public class FalkorDBAPITest : BaseTest
     }
 
     [Fact]
+    public void TestConstraintHelpersCreateAndDropNodeUnique()
+    {
+        Assert.NotNull(_api.Query("CREATE (:person{name:'roi',age:32})"));
+
+        var createResult = _api.CreateNodeUniqueConstraint("person", "name");
+        // Creation is asynchronous server-side; we at least assert the command succeeded
+        Assert.NotNull(createResult.Statistics);
+
+        var constraints = _api.ListConstraints();
+        Assert.NotNull(constraints);
+
+        var dropResult = _api.DropNodeUniqueConstraint("person", "name");
+        Assert.NotNull(dropResult.Statistics);
+    }
+
+    [Fact]
+    public void TestConstraintHelpersCreateAndDropNodeMandatory()
+    {
+        Assert.NotNull(_api.Query("CREATE (:person{name:'roi',age:32})"));
+
+        var createResult = _api.CreateNodeMandatoryConstraint("person", "name");
+        Assert.NotNull(createResult.Statistics);
+
+        var dropResult = _api.DropNodeMandatoryConstraint("person", "name");
+        Assert.NotNull(dropResult.Statistics);
+    }
+
+    [Fact]
     public void TestIndexHelpersCreateAndDropNodeRange()
     {
         Assert.NotNull(_api.Query("CREATE (:person{name:'roi',age:32})"));
