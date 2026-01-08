@@ -5,9 +5,9 @@
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <Authors>Tom Hanks (tombatron), John Weber (jweber), Jason Geyen (jgeyen), Rolf Wessels (rolfwessels), Rob Povey (polygonhell)</Authors>
     <Company />
-    <AssemblyVersion>1.0.3.0</AssemblyVersion>
-    <FileVersion>1.0.3.0</FileVersion>
-    <Version>1.0.3</Version>
+    <AssemblyVersion>1.0.4.0</AssemblyVersion>
+    <FileVersion>1.0.4.0</FileVersion>
+    <Version>1.0.4</Version>
     <Description>A series of extension methods for use with StackExchange.Redis 2.x and the FalkorDB Redis module.</Description>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <RepositoryUrl>https://github.com/falkordb/NFalkorDB</RepositoryUrl>
