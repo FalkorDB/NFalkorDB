@@ -13,7 +13,7 @@
     <RepositoryUrl>https://github.com/falkordb/NFalkorDB</RepositoryUrl>
     <ProjectRepository>https://github.com/falkordb/NFalkorDB</ProjectRepository>
     <LangVersion>latest</LangVersion>
-    <PackageVersion>1.0.3</PackageVersion>
+    <PackageVersion>1.0.4</PackageVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
