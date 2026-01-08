@@ -896,21 +896,12 @@ public class FalkorDBAPITest : BaseTest
         Assert.Equal(30L, rsRo.First().GetValue<long>(0));
     }
 
-    class DictionaryComparer : IEqualityComparer<Dictionary<string, object>>
-    {
-        public bool Equals(Dictionary<string, object> x, Dictionary<string, object> y)
-        {
-            return x.Count == y.Count && x.Keys.All(k => y.ContainsKey(k) && Equals(x[k], y[k]));
-        }
-        public int GetHashCode(Dictionary<string, object> obj) => obj.Count;
-    }
-
     [Fact]
     public void TestMapParameter()
     {
-        var value = new Dictionary<string, object> { ["a"] = 1L, ["b"] = "str", ["c"] = null };
+        var value = new Dictionary<string, object> { ["a"] = 1L, ["b"] = "str\\", ["c"] = null };
         var res = _api.Query("RETURN $a", new Dictionary<string, object> { ["a"] = value });
-        Assert.Equal(res.First().GetValue<Dictionary<string, object>>(0), value, new DictionaryComparer());
+        Assert.Equal(res.First().GetValue<Dictionary<string, object>>(0), value);
     }
 
     public static object[][] TestParameterValues =
