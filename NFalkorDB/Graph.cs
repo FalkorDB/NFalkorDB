@@ -280,4 +280,162 @@ public class Graph
             return new ResultSet(rawResult, null);
         }
     }
+
+    // Index helpers
+
+    private ResultSet CreateTypedIndex(string idxType, string entityType, string labelOrRelation, IEnumerable<string> properties, IDictionary<string, object> options = null)
+    {
+        if (string.IsNullOrWhiteSpace(labelOrRelation))
+        {
+            throw new System.ArgumentException("Label or relation must be provided.", nameof(labelOrRelation));
+        }
+
+        if (properties == null)
+        {
+            throw new System.ArgumentNullException(nameof(properties));
+        }
+
+        var propsArray = properties as string[] ?? properties.ToArray();
+        if (propsArray.Length == 0)
+        {
+            throw new System.ArgumentException("At least one property must be provided.", nameof(properties));
+        }
+
+        string pattern = entityType == "NODE"
+            ? $"(e:{labelOrRelation})"
+            : entityType == "EDGE" ? $"()-[e:{labelOrRelation}]->()" : throw new System.ArgumentException("Invalid entity type", nameof(entityType));
+
+        if (idxType == "RANGE")
+        {
+            idxType = string.Empty;
+        }
+
+        var sb = new StringBuilder();
+        sb.Append("CREATE ");
+        if (!string.IsNullOrEmpty(idxType))
+        {
+            sb.Append(idxType).Append(' ');
+        }
+
+        sb.Append("INDEX FOR ")
+          .Append(pattern)
+          .Append(" ON (")
+          .Append(string.Join(",", propsArray.Select(p => $"e.{p}")))
+          .Append(')');
+
+        if (options != null && options.Count > 0)
+        {
+            var optionParts = new List<string>();
+            foreach (var kvp in options)
+            {
+                if (kvp.Value is string s)
+                {
+                    optionParts.Add($"{kvp.Key}:'{s}'");
+                }
+                else
+                {
+                    optionParts.Add($"{kvp.Key}:{kvp.Value}");
+                }
+            }
+
+            sb.Append(" OPTIONS {")
+              .Append(string.Join(",", optionParts))
+              .Append('}');
+        }
+
+        return Query(sb.ToString());
+    }
+
+    private ResultSet DropIndex(string idxType, string entityType, string labelOrRelation, string attribute)
+    {
+        if (string.IsNullOrWhiteSpace(labelOrRelation))
+        {
+            throw new System.ArgumentException("Label or relation must be provided.", nameof(labelOrRelation));
+        }
+
+        if (string.IsNullOrWhiteSpace(attribute))
+        {
+            throw new System.ArgumentException("Attribute must be provided.", nameof(attribute));
+        }
+
+        string pattern = entityType == "NODE"
+            ? $"(e:{labelOrRelation})"
+            : entityType == "EDGE" ? $"()-[e:{labelOrRelation}]->()" : throw new System.ArgumentException("Invalid entity type", nameof(entityType));
+
+        string query;
+        switch (idxType)
+        {
+            case "RANGE":
+                query = $"DROP INDEX FOR {pattern} ON (e.{attribute})";
+                break;
+            case "FULLTEXT":
+                query = $"DROP FULLTEXT INDEX FOR {pattern} ON (e.{attribute})";
+                break;
+            case "VECTOR":
+                query = $"DROP VECTOR INDEX FOR {pattern} ON (e.{attribute})";
+                break;
+            default:
+                throw new System.ArgumentException("Invalid index type", nameof(idxType));
+        }
+
+        return Query(query);
+    }
+
+    public ResultSet CreateNodeRangeIndex(string label, params string[] properties) =>
+        CreateTypedIndex("RANGE", "NODE", label, properties);
+
+    public ResultSet CreateNodeFulltextIndex(string label, params string[] properties) =>
+        CreateTypedIndex("FULLTEXT", "NODE", label, properties);
+
+    public ResultSet CreateNodeVectorIndex(string label, int dimension, string similarityFunction = "euclidean", params string[] properties)
+    {
+        var options = new Dictionary<string, object>
+        {
+            ["dimension"] = dimension,
+            ["similarityFunction"] = similarityFunction
+        };
+
+        return CreateTypedIndex("VECTOR", "NODE", label, properties, options);
+    }
+
+    public ResultSet CreateEdgeRangeIndex(string relation, params string[] properties) =>
+        CreateTypedIndex("RANGE", "EDGE", relation, properties);
+
+    public ResultSet CreateEdgeFulltextIndex(string relation, params string[] properties) =>
+        CreateTypedIndex("FULLTEXT", "EDGE", relation, properties);
+
+    public ResultSet CreateEdgeVectorIndex(string relation, int dimension, string similarityFunction = "euclidean", params string[] properties)
+    {
+        var options = new Dictionary<string, object>
+        {
+            ["dimension"] = dimension,
+            ["similarityFunction"] = similarityFunction
+        };
+
+        return CreateTypedIndex("VECTOR", "EDGE", relation, properties, options);
+    }
+
+    public ResultSet DropNodeRangeIndex(string label, string attribute) =>
+        DropIndex("RANGE", "NODE", label, attribute);
+
+    public ResultSet DropNodeFulltextIndex(string label, string attribute) =>
+        DropIndex("FULLTEXT", "NODE", label, attribute);
+
+    public ResultSet DropNodeVectorIndex(string label, string attribute) =>
+        DropIndex("VECTOR", "NODE", label, attribute);
+
+    public ResultSet DropEdgeRangeIndex(string relation, string attribute) =>
+        DropIndex("RANGE", "EDGE", relation, attribute);
+
+    public ResultSet DropEdgeFulltextIndex(string relation, string attribute) =>
+        DropIndex("FULLTEXT", "EDGE", relation, attribute);
+
+    public ResultSet DropEdgeVectorIndex(string relation, string attribute) =>
+        DropIndex("VECTOR", "EDGE", relation, attribute);
+
+    /// <summary>
+    /// Lists graph indices using the db.indexes procedure.
+    /// </summary>
+    public ResultSet ListIndices(CommandFlags flags = CommandFlags.None) =>
+        CallProcedure("db.indexes", flags: flags);
 }

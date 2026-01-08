@@ -170,6 +170,30 @@ public class FalkorDBAPITest : BaseTest
     }
 
     [Fact]
+    public void TestIndexHelpersCreateAndDropNodeRange()
+    {
+        Assert.NotNull(_api.Query("CREATE (:person{name:'roi',age:32})"));
+
+        var createResult = _api.CreateNodeRangeIndex("person", "age");
+        Assert.Equal(1, createResult.Statistics.IndicesCreated);
+
+        var dropResult = _api.DropNodeRangeIndex("person", "age");
+        Assert.Equal(1, dropResult.Statistics.IndicesDeleted);
+    }
+
+    [Fact]
+    public void TestIndexHelpersListIndices()
+    {
+        Assert.NotNull(_api.Query("CREATE (:person{name:'roi',age:32})"));
+
+        _api.CreateNodeRangeIndex("person", "age");
+
+        var indicesResult = _api.ListIndices();
+        // Shape is server-dependent; just ensure the call succeeds and returns a header
+        Assert.NotNull(indicesResult);
+    }
+
+    [Fact]
     public void TestHeader()
     {
         Assert.NotNull(_api.Query("CREATE (:person{name:'roi',age:32})"));
