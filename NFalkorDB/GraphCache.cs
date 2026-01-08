@@ -18,6 +18,16 @@ internal abstract class BaseGraphCache : IGraphCache
     public string GetRelationshipType(int index) => RelationshipTypes.GetCachedData(index);
 
     public string GetPropertyName(int index) => PropertyNames.GetCachedData(index);
+
+    /// <summary>
+    /// Refreshes all cached schema components from the server.
+    /// </summary>
+    public void Refresh()
+    {
+        Labels?.Refresh();
+        PropertyNames?.Refresh();
+        RelationshipTypes?.Refresh();
+    }
 }
 
 internal sealed class GraphCache : BaseGraphCache

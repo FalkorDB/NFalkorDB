@@ -55,14 +55,32 @@ public class Graph
             commandArgs.Add(timeout);
         }
 
-        var rawResult = _db.Execute(Command.QUERY, commandArgs.ToArray(), flags);
+        try
+        {
+            var rawResult = _db.Execute(Command.QUERY, commandArgs.ToArray(), flags);
 
-        if (flags.HasFlag(CommandFlags.FireAndForget))
-        {
-            return default;
+            if (flags.HasFlag(CommandFlags.FireAndForget))
+            {
+                return default;
+            }
+
+            return new ResultSet(rawResult, _cache);
         }
-        else
+        catch (SchemaVersionMismatchException)
         {
+            // refresh schema cache and retry once
+            if (_cache is BaseGraphCache baseCache)
+            {
+                baseCache.Refresh();
+            }
+
+            var rawResult = _db.Execute(Command.QUERY, commandArgs.ToArray(), flags);
+
+            if (flags.HasFlag(CommandFlags.FireAndForget))
+            {
+                return default;
+            }
+
             return new ResultSet(rawResult, _cache);
         }
     }
@@ -92,14 +110,31 @@ public class Graph
             commandArgs.Add(timeout);
         }
 
-        var rawResult = await _db.ExecuteAsync(Command.QUERY, commandArgs.ToArray(), flags);
+        try
+        {
+            var rawResult = await _db.ExecuteAsync(Command.QUERY, commandArgs.ToArray(), flags);
 
-        if (flags.HasFlag(CommandFlags.FireAndForget))
-        {
-            return default;
+            if (flags.HasFlag(CommandFlags.FireAndForget))
+            {
+                return default;
+            }
+
+            return new ResultSet(rawResult, _cache);
         }
-        else
+        catch (SchemaVersionMismatchException)
         {
+            if (_cache is BaseGraphCache baseCache)
+            {
+                baseCache.Refresh();
+            }
+
+            var rawResult = await _db.ExecuteAsync(Command.QUERY, commandArgs.ToArray(), flags);
+
+            if (flags.HasFlag(CommandFlags.FireAndForget))
+            {
+                return default;
+            }
+
             return new ResultSet(rawResult, _cache);
         }
     }
@@ -129,9 +164,21 @@ public class Graph
             parameters.Add(timeout);
         }
 
-        var result = _db.Execute(Command.RO_QUERY, parameters.ToArray(), (flags | CommandFlags.PreferReplica));
+        try
+        {
+            var result = _db.Execute(Command.RO_QUERY, parameters.ToArray(), (flags | CommandFlags.PreferReplica));
+            return new ResultSet(result, _cache);
+        }
+        catch (SchemaVersionMismatchException)
+        {
+            if (_cache is BaseGraphCache baseCache)
+            {
+                baseCache.Refresh();
+            }
 
-        return new ResultSet(result, _cache);
+            var result = _db.Execute(Command.RO_QUERY, parameters.ToArray(), (flags | CommandFlags.PreferReplica));
+            return new ResultSet(result, _cache);
+        }
     }
 
     /// <summary>
@@ -159,9 +206,21 @@ public class Graph
             parameters.Add(timeout);
         }
 
-        var result = await _db.ExecuteAsync(Command.RO_QUERY, parameters.ToArray(), (flags | CommandFlags.PreferReplica));
+        try
+        {
+            var result = await _db.ExecuteAsync(Command.RO_QUERY, parameters.ToArray(), (flags | CommandFlags.PreferReplica));
+            return new ResultSet(result, _cache);
+        }
+        catch (SchemaVersionMismatchException)
+        {
+            if (_cache is BaseGraphCache baseCache)
+            {
+                baseCache.Refresh();
+            }
 
-        return new ResultSet(result, _cache);
+            var result = await _db.ExecuteAsync(Command.RO_QUERY, parameters.ToArray(), (flags | CommandFlags.PreferReplica));
+            return new ResultSet(result, _cache);
+        }
     }
 
     /// <summary>
