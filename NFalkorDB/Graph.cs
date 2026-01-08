@@ -583,6 +583,56 @@ public class Graph
     }
 
     /// <summary>
+    /// Returns the execution plan for the given query.
+    /// </summary>
+    public IReadOnlyList<string> Explain(string query, IDictionary<string, object> parameters = null, CommandFlags flags = CommandFlags.None)
+    {
+        var preparedQuery = PrepareQuery(query, parameters);
+
+        var commandArgs = new object[]
+        {
+            _graphId,
+            preparedQuery
+        };
+
+        var result = _db.Execute(Command.EXPLAIN, commandArgs, flags);
+
+        if (result.Resp2Type != ResultType.Array)
+        {
+            return System.Array.Empty<string>();
+        }
+
+        return ((RedisResult[])result)
+            .Select(x => (string)x)
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Returns the execution plan for the given query asynchronously.
+    /// </summary>
+    public async Task<IReadOnlyList<string>> ExplainAsync(string query, IDictionary<string, object> parameters = null, CommandFlags flags = CommandFlags.None)
+    {
+        var preparedQuery = PrepareQuery(query, parameters);
+
+        var commandArgs = new object[]
+        {
+            _graphId,
+            preparedQuery
+        };
+
+        var result = await _db.ExecuteAsync(Command.EXPLAIN, commandArgs, flags);
+
+        if (result.Resp2Type != ResultType.Array)
+        {
+            return System.Array.Empty<string>();
+        }
+
+        return ((RedisResult[])result)
+            .Select(x => (string)x)
+            .ToArray();
+    }
+
+    /// <summary>
     /// Profiles the execution of the given query.
     /// </summary>
     public IReadOnlyList<string> Profile(string query, IDictionary<string, object> parameters = null, CommandFlags flags = CommandFlags.None)
@@ -632,71 +682,4 @@ public class Graph
             .ToArray();
     }
 
-    /// <summary>
-    /// Returns the current slowlog entries for this graph.
-    /// </summary>
-    public IReadOnlyList<RedisResult> Slowlog(CommandFlags flags = CommandFlags.None)
-    {
-        var commandArgs = new object[]
-        {
-            _graphId
-        };
-
-        var result = _db.Execute(Command.SLOWLOG, commandArgs, flags);
-
-        if (result.Resp2Type != ResultType.Array)
-        {
-            return System.Array.Empty<RedisResult>();
-        }
-
-        return (RedisResult[])result;
-    }
-
-    /// <summary>
-    /// Returns the current slowlog entries for this graph asynchronously.
-    /// </summary>
-    public async Task<IReadOnlyList<RedisResult>> SlowlogAsync(CommandFlags flags = CommandFlags.None)
-    {
-        var commandArgs = new object[]
-        {
-            _graphId
-        };
-
-        var result = await _db.ExecuteAsync(Command.SLOWLOG, commandArgs, flags);
-
-        if (result.Resp2Type != ResultType.Array)
-        {
-            return System.Array.Empty<RedisResult>();
-        }
-
-        return (RedisResult[])result;
-    }
-
-    /// <summary>
-    /// Resets the slowlog for this graph.
-    /// </summary>
-    public void SlowlogReset(CommandFlags flags = CommandFlags.None)
-    {
-        var commandArgs = new object[]
-        {
-            _graphId,
-            "RESET"
-        };
-
-        _db.Execute(Command.SLOWLOG, commandArgs, flags);
-    }
-
-    /// <summary>
-    /// Resets the slowlog for this graph asynchronously.
-    /// </summary>
-    public Task SlowlogResetAsync(CommandFlags flags = CommandFlags.None)
-    {
-        var commandArgs = new object[]
-        {
-            _graphId,
-            "RESET"
-        };
-
-        return _db.ExecuteAsync(Command.SLOWLOG, commandArgs, flags);
-    }
 }
