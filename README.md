@@ -42,6 +42,104 @@ Expected output (version may vary):
 
 NFalkorDB exposes FalkorDB commands as C# extension methods through StackExchange.Redis.
 
+### Connection & DB-level commands (Phase 1)
+
+`FalkorDB` can be constructed either from an existing `IDatabase` or from a StackExchange.Redis configuration string.
+
+```c#
+// Using a configuration string / URL
+var client = new FalkorDB("localhost:6379");
+
+// Select a graph
+Graph graph = client.SelectGraph("social");
+
+// DB-level helpers
+var graphs = client.ListGraphs();              // GRAPH.LIST
+string timeout = client.GetConfig("TIMEOUT_MS"); // GRAPH.CONFIG GET TIMEOUT_MS
+client.SetConfig("TIMEOUT_MS", 1000);         // GRAPH.CONFIG SET TIMEOUT_MS 1000
+```
+
+Async counterparts `ListGraphsAsync`, `GetConfigAsync`, and `SetConfigAsync` are also available.
+
+### Graph commands & introspection (Phase 2)
+
+The `Graph` class wraps core FalkorDB graph commands:
+
+- `Query` / `QueryAsync` and `ReadOnlyQuery` / `ReadOnlyQueryAsync` with optional `timeout` in milliseconds.
+- `Copy` / `CopyAsync` for `GRAPH.COPY`.
+- `Delete` / `DeleteAsync` for `GRAPH.DELETE`.
+- `Explain` / `ExplainAsync` for `GRAPH.EXPLAIN`.
+- `Profile` / `ProfileAsync` for `GRAPH.PROFILE`.
+- `Slowlog`, `SlowlogAsync`, `SlowlogReset`, `SlowlogResetAsync` for `GRAPH.SLOWLOG`.
+
+### Index helpers (Phase 3)
+
+NFalkorDB provides helpers to create, drop, and list indices:
+
+```c#
+// Node indices
+graph.CreateNodeRangeIndex("Person", "name");
+graph.CreateNodeFulltextIndex("Person", "bio");
+graph.CreateNodeVectorIndex("Person", dimension: 1536, similarityFunction: "euclidean", "embedding");
+
+// Edge indices
+graph.CreateEdgeRangeIndex("KNOWS", "since");
+
+// Drop indices
+graph.DropNodeRangeIndex("Person", "name");
+
+// List indices (also ListIndicesAsync)
+var indexResult = graph.ListIndices(); // CALL db.indexes
+```
+
+### Constraint helpers (Phase 4)
+
+Constraint APIs mirror FalkorDB `GRAPH.CONSTRAINT` support and auto-create required range indices for unique constraints:
+
+```c#
+// Node constraints
+graph.CreateNodeUniqueConstraint("Person", "id");
+graph.CreateNodeMandatoryConstraint("Person", "name");
+
+// Edge constraints
+graph.CreateEdgeUniqueConstraint("KNOWS", "since");
+
+// Drop constraints
+graph.DropNodeUniqueConstraint("Person", "id");
+
+// List constraints (also ListConstraintsAsync)
+var constraints = graph.ListConstraints(); // CALL DB.CONSTRAINTS
+```
+
+### Schema cache & version mismatch (Phase 5)
+
+NFalkorDB caches labels, relationship types, and property keys. If the server responds with a `"version mismatch"` error, the client:
+
+1. Throws `SchemaVersionMismatchException` internally.
+2. Refreshes the schema cache (`db.labels`, `db.propertyKeys`, `db.relationshipTypes`).
+3. Retries the query once transparently.
+
+### Extended scalar types (Phase 6)
+
+`ResultSet` now decodes additional scalar types returned by FalkorDB:
+
+- `VALUE_DATETIME` → `DateTime` (UTC) via Unix time in ms.
+- `VALUE_DATE` → `DateTime.Date`.
+- `VALUE_TIME` → `TimeSpan` (time since midnight in ms).
+- `VALUE_DURATION` → `TimeSpan` (duration in ms).
+
+Existing types (nodes, edges, paths, maps, arrays, points, vectors) remain supported.
+
+### Async parity (Phase 7)
+
+Wherever synchronous helpers exist, async counterparts are being added. In particular:
+
+- DB-level: `ListGraphsAsync`, `GetConfigAsync`, `SetConfigAsync`.
+- Graph-level: `QueryAsync`, `ReadOnlyQueryAsync`, `CopyAsync`, `DeleteAsync`, `ExplainAsync`, `ProfileAsync`, `SlowlogAsync`, `SlowlogResetAsync`.
+- Listing operations: `ListIndicesAsync`, `ListConstraintsAsync`.
+
+Use these in combination with `await` to integrate FalkorDB graph operations into async application flows.
+
 ### Getting Started
 
 ```c#
