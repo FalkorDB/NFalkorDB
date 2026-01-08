@@ -355,7 +355,6 @@ public class Graph
             return new ResultSet(rawResult, null);
         }
     }
-
     // Index helpers
 
     private ResultSet CreateTypedIndex(string idxType, string entityType, string labelOrRelation, IEnumerable<string> properties, IDictionary<string, object> options = null)
@@ -514,6 +513,12 @@ public class Graph
     public ResultSet ListIndices(CommandFlags flags = CommandFlags.None) =>
         CallProcedure("db.indexes", flags: flags);
 
+    /// <summary>
+    /// Lists graph indices using the db.indexes procedure asynchronously.
+    /// </summary>
+    public Task<ResultSet> ListIndicesAsync(CommandFlags flags = CommandFlags.None) =>
+        CallProcedureAsync("db.indexes", null, null, flags);
+
     // Constraint helpers
 
     private ResultSet CreateConstraint(string constraintType, string entityType, string labelOrRelation, params string[] properties)
@@ -647,6 +652,12 @@ public class Graph
     /// </summary>
     public ResultSet ListConstraints(CommandFlags flags = CommandFlags.None) =>
         CallProcedure("DB.CONSTRAINTS", flags: flags);
+
+    /// <summary>
+    /// Lists graph constraints using the DB.CONSTRAINTS procedure asynchronously.
+    /// </summary>
+    public Task<ResultSet> ListConstraintsAsync(CommandFlags flags = CommandFlags.None) =>
+        CallProcedureAsync("DB.CONSTRAINTS", null, null, flags);
 
     /// <summary>
     /// Returns the current slowlog entries for this graph.
