@@ -41,12 +41,26 @@ public class FalkorDBAPITest : BaseTest
 
     protected override void BeforeTest()
     {
-        _muxr = ConnectionMultiplexer.Connect(RedisConnectionString);
+        const int maxAttempts = 3;
+        var attempt = 0;
 
-        _muxr.GetDatabase().Execute("FLUSHDB");
+        while (true)
+        {
+            try
+            {
+                _muxr = ConnectionMultiplexer.Connect(RedisConnectionString);
+                _muxr.GetDatabase().Execute("FLUSHDB");
 
-        _api = new FalkorDB(_muxr.GetDatabase(0)).SelectGraph("social");
-        _whatever = new FalkorDB(_muxr.GetDatabase(0)).SelectGraph("whatever");
+                _api = new FalkorDB(_muxr.GetDatabase(0)).SelectGraph("social");
+                _whatever = new FalkorDB(_muxr.GetDatabase(0)).SelectGraph("whatever");
+                break;
+            }
+            catch (RedisConnectionException) when (++attempt < maxAttempts)
+            {
+                // Transient socket/connection error: retry a few times.
+                System.Threading.Thread.Sleep(200 * attempt);
+            }
+        }
     }
 
     protected override void AfterTest()
