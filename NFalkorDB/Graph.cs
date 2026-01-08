@@ -42,14 +42,20 @@ public class Graph
     {
         var preparedQuery = PrepareQuery(query, parameters);
 
-        var commandArgs = new object[]
+        var commandArgs = new List<object>
         {
-                _graphId,
-                preparedQuery,
-                CompactQueryFlag
+            _graphId,
+            preparedQuery,
+            CompactQueryFlag
         };
 
-        var rawResult = _db.Execute(Command.QUERY, commandArgs, flags);
+        if (timeout > 0)
+        {
+            commandArgs.Add("timeout");
+            commandArgs.Add(timeout);
+        }
+
+        var rawResult = _db.Execute(Command.QUERY, commandArgs.ToArray(), flags);
 
         if (flags.HasFlag(CommandFlags.FireAndForget))
         {
@@ -67,19 +73,26 @@ public class Graph
     /// <param name="query">The Cypher query.</param>
     /// <param name="parameters">Parameters map.</param>
     /// <param name="flags">[Optional] Command flags that are to be sent to the StackExchange.Redis connection multiplexer...</param>
+    /// <param name="timeout">[Optional] Timeout in milliseconds.</param>
     /// <returns>A result set.</returns>
-    public async Task<ResultSet> QueryAsync(string query, IDictionary<string, object> parameters = null, CommandFlags flags = CommandFlags.None)
+    public async Task<ResultSet> QueryAsync(string query, IDictionary<string, object> parameters = null, CommandFlags flags = CommandFlags.None, long timeout = 0)
     {
         var preparedQuery = PrepareQuery(query, parameters);
 
-        var commandArgs = new object[]
+        var commandArgs = new List<object>
         {
-                _graphId,
-                preparedQuery,
-                CompactQueryFlag
+            _graphId,
+            preparedQuery,
+            CompactQueryFlag
         };
 
-        var rawResult = await _db.ExecuteAsync(Command.QUERY, commandArgs, flags);
+        if (timeout > 0)
+        {
+            commandArgs.Add("timeout");
+            commandArgs.Add(timeout);
+        }
+
+        var rawResult = await _db.ExecuteAsync(Command.QUERY, commandArgs.ToArray(), flags);
 
         if (flags.HasFlag(CommandFlags.FireAndForget))
         {
@@ -97,19 +110,26 @@ public class Graph
     /// <param name="query">The Cypher query.</param>
     /// <param name="parms">Parameters map.</param>
     /// <param name="flags">Optional command flags. `PreferReplica` is set for you here.</param>
+    /// <param name="timeout">[Optional] Timeout in milliseconds.</param>
     /// <returns>A result set.</returns>
-    public ResultSet ReadOnlyQuery(string query, IDictionary<string, object> parms = null, CommandFlags flags = CommandFlags.None)
+    public ResultSet ReadOnlyQuery(string query, IDictionary<string, object> parms = null, CommandFlags flags = CommandFlags.None, long timeout = 0)
     {
         var preparedQuery = PrepareQuery(query, parms);
 
-        var parameters = new object[]
+        var parameters = new List<object>
         {
-                _graphId,
-                preparedQuery,
-                CompactQueryFlag
+            _graphId,
+            preparedQuery,
+            CompactQueryFlag
         };
 
-        var result = _db.Execute(Command.RO_QUERY, parameters, (flags | CommandFlags.PreferReplica));
+        if (timeout > 0)
+        {
+            parameters.Add("timeout");
+            parameters.Add(timeout);
+        }
+
+        var result = _db.Execute(Command.RO_QUERY, parameters.ToArray(), (flags | CommandFlags.PreferReplica));
 
         return new ResultSet(result, _cache);
     }
@@ -120,19 +140,26 @@ public class Graph
     /// <param name="query">The Cypher query.</param>
     /// <param name="parms">Parameters map.</param>
     /// <param name="flags">Optional command flags. `PreferReplica` is set for you here.</param>
+    /// <param name="timeout">[Optional] Timeout in milliseconds.</param>
     /// <returns>A result set.</returns>
-    public async Task<ResultSet> ReadOnlyQueryAsync(string query, IDictionary<string, object> parms = null, CommandFlags flags = CommandFlags.None)
+    public async Task<ResultSet> ReadOnlyQueryAsync(string query, IDictionary<string, object> parms = null, CommandFlags flags = CommandFlags.None, long timeout = 0)
     {
         var preparedQuery = PrepareQuery(query, parms);
 
-        var parameters = new object[]
+        var parameters = new List<object>
         {
-                _graphId,
-                preparedQuery,
-                CompactQueryFlag
+            _graphId,
+            preparedQuery,
+            CompactQueryFlag
         };
 
-        var result = await _db.ExecuteAsync(Command.RO_QUERY, parameters, (flags | CommandFlags.PreferReplica));
+        if (timeout > 0)
+        {
+            parameters.Add("timeout");
+            parameters.Add(timeout);
+        }
+
+        var result = await _db.ExecuteAsync(Command.RO_QUERY, parameters.ToArray(), (flags | CommandFlags.PreferReplica));
 
         return new ResultSet(result, _cache);
     }
@@ -231,6 +258,54 @@ public class Graph
         }
 
         return ReadOnlyQueryAsync(queryBody.ToString(), flags: flags);
+    }
+
+    /// <summary>
+    /// Creates a copy of the current graph.
+    /// </summary>
+    /// <param name="cloneGraphId">Identifier of the cloned graph.</param>
+    /// <param name="flags">[Optional] Command flags that are to be sent to the StackExchange.Redis connection multiplexer...</param>
+    /// <returns>The cloned <see cref="Graph"/>.</returns>
+    public Graph Copy(string cloneGraphId, CommandFlags flags = CommandFlags.None)
+    {
+        var commandArgs = new object[]
+        {
+            _graphId,
+            cloneGraphId
+        };
+
+        _db.Execute(Command.COPY, commandArgs, flags);
+
+        if (flags.HasFlag(CommandFlags.FireAndForget))
+        {
+            return null;
+        }
+
+        return new Graph(cloneGraphId, _db);
+    }
+
+    /// <summary>
+    /// Creates a copy of the current graph asynchronously.
+    /// </summary>
+    /// <param name="cloneGraphId">Identifier of the cloned graph.</param>
+    /// <param name="flags">[Optional] Command flags that are to be sent to the StackExchange.Redis connection multiplexer...</param>
+    /// <returns>The cloned <see cref="Graph"/>.</returns>
+    public async Task<Graph> CopyAsync(string cloneGraphId, CommandFlags flags = CommandFlags.None)
+    {
+        var commandArgs = new object[]
+        {
+            _graphId,
+            cloneGraphId
+        };
+
+        await _db.ExecuteAsync(Command.COPY, commandArgs, flags);
+
+        if (flags.HasFlag(CommandFlags.FireAndForget))
+        {
+            return null;
+        }
+
+        return new Graph(cloneGraphId, _db);
     }
 
     /// <summary>
@@ -438,4 +513,173 @@ public class Graph
     /// </summary>
     public ResultSet ListIndices(CommandFlags flags = CommandFlags.None) =>
         CallProcedure("db.indexes", flags: flags);
+=======
+    /// <summary>
+    /// Returns the execution plan for the given query.
+    /// </summary>
+    public IReadOnlyList<string> Explain(string query, IDictionary<string, object> parameters = null, CommandFlags flags = CommandFlags.None)
+    {
+        var preparedQuery = PrepareQuery(query, parameters);
+
+        var commandArgs = new object[]
+        {
+            _graphId,
+            preparedQuery
+        };
+
+        var result = _db.Execute(Command.EXPLAIN, commandArgs, flags);
+
+        if (result.Resp2Type != ResultType.Array)
+        {
+            return System.Array.Empty<string>();
+        }
+
+        return ((RedisResult[])result)
+            .Select(x => (string)x)
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Returns the execution plan for the given query asynchronously.
+    /// </summary>
+    public async Task<IReadOnlyList<string>> ExplainAsync(string query, IDictionary<string, object> parameters = null, CommandFlags flags = CommandFlags.None)
+    {
+        var preparedQuery = PrepareQuery(query, parameters);
+
+        var commandArgs = new object[]
+        {
+            _graphId,
+            preparedQuery
+        };
+
+        var result = await _db.ExecuteAsync(Command.EXPLAIN, commandArgs, flags);
+
+        if (result.Resp2Type != ResultType.Array)
+        {
+            return System.Array.Empty<string>();
+        }
+
+        return ((RedisResult[])result)
+            .Select(x => (string)x)
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Profiles the execution of the given query.
+    /// </summary>
+    public IReadOnlyList<string> Profile(string query, IDictionary<string, object> parameters = null, CommandFlags flags = CommandFlags.None)
+    {
+        var preparedQuery = PrepareQuery(query, parameters);
+
+        var commandArgs = new object[]
+        {
+            _graphId,
+            preparedQuery
+        };
+
+        var result = _db.Execute(Command.PROFILE, commandArgs, flags);
+
+        if (result.Resp2Type != ResultType.Array)
+        {
+            return System.Array.Empty<string>();
+        }
+
+        return ((RedisResult[])result)
+            .Select(x => (string)x)
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Profiles the execution of the given query asynchronously.
+    /// </summary>
+    public async Task<IReadOnlyList<string>> ProfileAsync(string query, IDictionary<string, object> parameters = null, CommandFlags flags = CommandFlags.None)
+    {
+        var preparedQuery = PrepareQuery(query, parameters);
+
+        var commandArgs = new object[]
+        {
+            _graphId,
+            preparedQuery
+        };
+
+        var result = await _db.ExecuteAsync(Command.PROFILE, commandArgs, flags);
+
+        if (result.Resp2Type != ResultType.Array)
+        {
+            return System.Array.Empty<string>();
+        }
+
+        return ((RedisResult[])result)
+            .Select(x => (string)x)
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Returns the current slowlog entries for this graph.
+    /// </summary>
+    public IReadOnlyList<RedisResult> Slowlog(CommandFlags flags = CommandFlags.None)
+    {
+        var commandArgs = new object[]
+        {
+            _graphId
+        };
+
+        var result = _db.Execute(Command.SLOWLOG, commandArgs, flags);
+
+        if (result.Resp2Type != ResultType.Array)
+        {
+            return System.Array.Empty<RedisResult>();
+        }
+
+        return (RedisResult[])result;
+    }
+
+    /// <summary>
+    /// Returns the current slowlog entries for this graph asynchronously.
+    /// </summary>
+    public async Task<IReadOnlyList<RedisResult>> SlowlogAsync(CommandFlags flags = CommandFlags.None)
+    {
+        var commandArgs = new object[]
+        {
+            _graphId
+        };
+
+        var result = await _db.ExecuteAsync(Command.SLOWLOG, commandArgs, flags);
+
+        if (result.Resp2Type != ResultType.Array)
+        {
+            return System.Array.Empty<RedisResult>();
+        }
+
+        return (RedisResult[])result;
+    }
+
+    /// <summary>
+    /// Resets the slowlog for this graph.
+    /// </summary>
+    public void SlowlogReset(CommandFlags flags = CommandFlags.None)
+    {
+        var commandArgs = new object[]
+        {
+            _graphId,
+            "RESET"
+        };
+
+        _db.Execute(Command.SLOWLOG, commandArgs, flags);
+    }
+
+    /// <summary>
+    /// Resets the slowlog for this graph asynchronously.
+    /// </summary>
+    public Task SlowlogResetAsync(CommandFlags flags = CommandFlags.None)
+    {
+        var commandArgs = new object[]
+        {
+            _graphId,
+            "RESET"
+        };
+
+        return _db.ExecuteAsync(Command.SLOWLOG, commandArgs, flags);
+    }
+>>>>>>> origin/master
 }
