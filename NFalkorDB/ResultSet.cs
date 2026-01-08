@@ -25,7 +25,11 @@ public sealed class ResultSet : IReadOnlyCollection<Record>
         VALUE_PATH,
         VALUE_MAP,
         VALUE_POINT,
-        VALUE_VECTOR
+        VALUE_VECTOR,
+        VALUE_DATETIME,
+        VALUE_DATE,
+        VALUE_TIME,
+        VALUE_DURATION
     }
 
     private readonly RedisResult[] _rawResults;
@@ -189,6 +193,17 @@ public sealed class ResultSet : IReadOnlyCollection<Record>
                 return new Point((double)rawScalarData[1][0], (double)rawScalarData[1][1]);
             case ResultSetScalarType.VALUE_VECTOR:
                 return rawScalarData[1];
+            case ResultSetScalarType.VALUE_DATETIME:
+                // raw value is assumed to be Unix time in milliseconds (UTC)
+                return DateTimeOffset.FromUnixTimeMilliseconds((long)rawScalarData[1]).UtcDateTime;
+            case ResultSetScalarType.VALUE_DATE:
+                return DateTimeOffset.FromUnixTimeMilliseconds((long)rawScalarData[1]).UtcDateTime.Date;
+            case ResultSetScalarType.VALUE_TIME:
+                // time since midnight in milliseconds
+                return TimeSpan.FromMilliseconds((long)rawScalarData[1]);
+            case ResultSetScalarType.VALUE_DURATION:
+                // duration in milliseconds
+                return TimeSpan.FromMilliseconds((long)rawScalarData[1]);
             case ResultSetScalarType.VALUE_UNKNOWN:
             default:
                 return (object)rawScalarData[1];
