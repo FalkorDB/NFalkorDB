@@ -16,4 +16,5 @@ internal static class Command
     internal const string PROFILE    = "graph.PROFILE";
     internal const string SLOWLOG    = "graph.SLOWLOG";
     internal const string CONSTRAINT = "graph.CONSTRAINT";
+    internal const string UDF        = "graph.UDF";
 }

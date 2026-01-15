@@ -39,6 +39,42 @@ public class FalkorDBAPITest : BaseTest
         // value may be null or numeric depending on server config, but call should not throw
     }
 
+    [Fact]
+    public void TestUdfMethods()
+    {
+        // Use the same Redis connection string as BaseTest
+        var client = new FalkorDB(RedisConnectionString);
+
+        // Test UDF LIST - should not throw even if no UDFs are loaded
+        var udfs = client.UdfList();
+        Assert.NotNull(udfs);
+
+        // Test UDF FLUSH - should not throw even if no UDFs are loaded
+        client.UdfFlush();
+
+        // Verify LIST is still callable after FLUSH
+        udfs = client.UdfList();
+        Assert.NotNull(udfs);
+    }
+
+    [Fact]
+    public async System.Threading.Tasks.Task TestUdfMethodsAsync()
+    {
+        // Use the same Redis connection string as BaseTest
+        var client = new FalkorDB(RedisConnectionString);
+
+        // Test async UDF LIST - should not throw even if no UDFs are loaded
+        var udfs = await client.UdfListAsync();
+        Assert.NotNull(udfs);
+
+        // Test async UDF FLUSH - should not throw even if no UDFs are loaded
+        await client.UdfFlushAsync();
+
+        // Verify async LIST is still callable after FLUSH
+        udfs = await client.UdfListAsync();
+        Assert.NotNull(udfs);
+    }
+
     protected override void BeforeTest()
     {
         const int maxAttempts = 3;
