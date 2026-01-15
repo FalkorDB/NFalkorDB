@@ -61,7 +61,7 @@ lifecycle
 parity
 mismatch
 timeout
-Github
+GitHub
 github
 cs
 NFalkorDBAPITest
