@@ -205,4 +205,132 @@ public sealed class FalkorDB
 
         return _db.ExecuteAsync(Command.CONFIG, new object[] { "SET", name, value }, flags);
     }
+
+    /// <summary>
+    /// Loads a user-defined function (UDF) from the specified path using GRAPH.UDF LOAD.
+    /// </summary>
+    /// <param name="path">Path to the UDF file.</param>
+    public void UdfLoad(string path, CommandFlags flags = CommandFlags.None)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            throw new ArgumentException("Path must be provided.", nameof(path));
+        }
+
+        _db.Execute(Command.UDF, new object[] { "LOAD", path }, flags);
+    }
+
+    /// <summary>
+    /// Loads a user-defined function (UDF) from the specified path asynchronously using GRAPH.UDF LOAD.
+    /// </summary>
+    /// <param name="path">Path to the UDF file.</param>
+    public System.Threading.Tasks.Task UdfLoadAsync(string path, CommandFlags flags = CommandFlags.None)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            throw new ArgumentException("Path must be provided.", nameof(path));
+        }
+
+        return _db.ExecuteAsync(Command.UDF, new object[] { "LOAD", path }, flags);
+    }
+
+    /// <summary>
+    /// Lists all loaded user-defined functions (UDFs) using GRAPH.UDF LIST.
+    /// </summary>
+    public IReadOnlyList<string> UdfList(CommandFlags flags = CommandFlags.None)
+    {
+        try
+        {
+            var result = _db.Execute(Command.UDF, new object[] { "LIST" }, flags);
+
+            if (result.Resp2Type != ResultType.Array)
+            {
+                return Array.Empty<string>();
+            }
+
+            return ((RedisResult[])result)
+                .Select(x => (string)x)
+                .ToArray();
+        }
+        catch (RedisConnectionException)
+        {
+            return Array.Empty<string>();
+        }
+        catch (InvalidCastException)
+        {
+            return Array.Empty<string>();
+        }
+    }
+
+    /// <summary>
+    /// Lists all loaded user-defined functions (UDFs) asynchronously using GRAPH.UDF LIST.
+    /// </summary>
+    public async System.Threading.Tasks.Task<IReadOnlyList<string>> UdfListAsync(CommandFlags flags = CommandFlags.None)
+    {
+        try
+        {
+            var result = await _db.ExecuteAsync(Command.UDF, new object[] { "LIST" }, flags).ConfigureAwait(false);
+
+            if (result.Resp2Type != ResultType.Array)
+            {
+                return Array.Empty<string>();
+            }
+
+            return ((RedisResult[])result)
+                .Select(x => (string)x)
+                .ToArray();
+        }
+        catch (RedisConnectionException)
+        {
+            return Array.Empty<string>();
+        }
+        catch (InvalidCastException)
+        {
+            return Array.Empty<string>();
+        }
+    }
+
+    /// <summary>
+    /// Removes all loaded user-defined functions (UDFs) using GRAPH.UDF FLUSH.
+    /// </summary>
+    public void UdfFlush(CommandFlags flags = CommandFlags.None)
+    {
+        _db.Execute(Command.UDF, new object[] { "FLUSH" }, flags);
+    }
+
+    /// <summary>
+    /// Removes all loaded user-defined functions (UDFs) asynchronously using GRAPH.UDF FLUSH.
+    /// </summary>
+    public System.Threading.Tasks.Task UdfFlushAsync(CommandFlags flags = CommandFlags.None)
+    {
+        return _db.ExecuteAsync(Command.UDF, new object[] { "FLUSH" }, flags);
+    }
+
+    /// <summary>
+    /// Deletes a specific user-defined function (UDF) using GRAPH.UDF DELETE.
+    /// </summary>
+    /// <param name="functionName">Name of the function to delete.</param>
+    public void UdfDelete(string functionName, CommandFlags flags = CommandFlags.None)
+    {
+        if (string.IsNullOrWhiteSpace(functionName))
+        {
+            throw new ArgumentException("Function name must be provided.", nameof(functionName));
+        }
+
+        _db.Execute(Command.UDF, new object[] { "DELETE", functionName }, flags);
+    }
+
+    /// <summary>
+    /// Deletes a specific user-defined function (UDF) asynchronously using GRAPH.UDF DELETE.
+    /// </summary>
+    /// <param name="functionName">Name of the function to delete.</param>
+    public System.Threading.Tasks.Task UdfDeleteAsync(string functionName, CommandFlags flags = CommandFlags.None)
+    {
+        if (string.IsNullOrWhiteSpace(functionName))
+        {
+            throw new ArgumentException("Function name must be provided.", nameof(functionName));
+        }
+
+        return _db.ExecuteAsync(Command.UDF, new object[] { "DELETE", functionName }, flags);
+    }
 }
