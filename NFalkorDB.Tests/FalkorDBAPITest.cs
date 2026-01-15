@@ -40,7 +40,7 @@ public class FalkorDBAPITest : BaseTest
     }
 
     [Fact]
-    public void TestUdfMethods()
+    public void TestUdfList()
     {
         // Use the same Redis connection string as BaseTest
         var client = new FalkorDB(RedisConnectionString);
@@ -49,13 +49,6 @@ public class FalkorDBAPITest : BaseTest
         {
             // Test UDF LIST - should not throw even if no UDFs are loaded
             var udfs = client.UdfList();
-            Assert.NotNull(udfs);
-
-            // Test UDF FLUSH - should not throw even if no UDFs are loaded
-            client.UdfFlush();
-
-            // Verify LIST is still callable after FLUSH
-            udfs = client.UdfList();
             Assert.NotNull(udfs);
         }
         catch (RedisServerException ex) when (ex.Message.Contains("unknown command"))
@@ -66,7 +59,68 @@ public class FalkorDBAPITest : BaseTest
     }
 
     [Fact]
-    public async System.Threading.Tasks.Task TestUdfMethodsAsync()
+    public void TestUdfFlush()
+    {
+        // Use the same Redis connection string as BaseTest
+        var client = new FalkorDB(RedisConnectionString);
+
+        try
+        {
+            // First ensure we start clean
+            client.UdfFlush();
+
+            // Verify LIST returns empty list after FLUSH
+            var udfsAfterFlush = client.UdfList();
+            Assert.NotNull(udfsAfterFlush);
+            Assert.Empty(udfsAfterFlush);
+
+            // Test that FLUSH can be called multiple times without error
+            client.UdfFlush();
+            
+            // Verify LIST still works after second flush
+            udfsAfterFlush = client.UdfList();
+            Assert.NotNull(udfsAfterFlush);
+            Assert.Empty(udfsAfterFlush);
+        }
+        catch (RedisServerException ex) when (ex.Message.Contains("unknown command"))
+        {
+            // GRAPH.UDF may not be supported in this FalkorDB version; skip test
+            return;
+        }
+    }
+
+    [Fact]
+    public void TestUdfLoadParameterValidation()
+    {
+        var client = new FalkorDB(RedisConnectionString);
+
+        // Test null path throws ArgumentException
+        Assert.Throws<ArgumentException>(() => client.UdfLoad(null));
+
+        // Test empty path throws ArgumentException
+        Assert.Throws<ArgumentException>(() => client.UdfLoad(""));
+
+        // Test whitespace path throws ArgumentException
+        Assert.Throws<ArgumentException>(() => client.UdfLoad("   "));
+    }
+
+    [Fact]
+    public void TestUdfDeleteParameterValidation()
+    {
+        var client = new FalkorDB(RedisConnectionString);
+
+        // Test null function name throws ArgumentException
+        Assert.Throws<ArgumentException>(() => client.UdfDelete(null));
+
+        // Test empty function name throws ArgumentException
+        Assert.Throws<ArgumentException>(() => client.UdfDelete(""));
+
+        // Test whitespace function name throws ArgumentException
+        Assert.Throws<ArgumentException>(() => client.UdfDelete("   "));
+    }
+
+    [Fact]
+    public async System.Threading.Tasks.Task TestUdfListAsync()
     {
         // Use the same Redis connection string as BaseTest
         var client = new FalkorDB(RedisConnectionString);
@@ -76,19 +130,73 @@ public class FalkorDBAPITest : BaseTest
             // Test async UDF LIST - should not throw even if no UDFs are loaded
             var udfs = await client.UdfListAsync();
             Assert.NotNull(udfs);
-
-            // Test async UDF FLUSH - should not throw even if no UDFs are loaded
-            await client.UdfFlushAsync();
-
-            // Verify async LIST is still callable after FLUSH
-            udfs = await client.UdfListAsync();
-            Assert.NotNull(udfs);
         }
         catch (RedisServerException ex) when (ex.Message.Contains("unknown command"))
         {
             // GRAPH.UDF may not be supported in this FalkorDB version; skip test
             return;
         }
+    }
+
+    [Fact]
+    public async System.Threading.Tasks.Task TestUdfFlushAsync()
+    {
+        // Use the same Redis connection string as BaseTest
+        var client = new FalkorDB(RedisConnectionString);
+
+        try
+        {
+            // First ensure we start clean
+            await client.UdfFlushAsync();
+
+            // Verify LIST returns empty list after FLUSH
+            var udfsAfterFlush = await client.UdfListAsync();
+            Assert.NotNull(udfsAfterFlush);
+            Assert.Empty(udfsAfterFlush);
+
+            // Test that FLUSH can be called multiple times without error
+            await client.UdfFlushAsync();
+            
+            // Verify LIST still works after second flush
+            udfsAfterFlush = await client.UdfListAsync();
+            Assert.NotNull(udfsAfterFlush);
+            Assert.Empty(udfsAfterFlush);
+        }
+        catch (RedisServerException ex) when (ex.Message.Contains("unknown command"))
+        {
+            // GRAPH.UDF may not be supported in this FalkorDB version; skip test
+            return;
+        }
+    }
+
+    [Fact]
+    public async System.Threading.Tasks.Task TestUdfLoadAsyncParameterValidation()
+    {
+        var client = new FalkorDB(RedisConnectionString);
+
+        // Test null path throws ArgumentException
+        await Assert.ThrowsAsync<ArgumentException>(() => client.UdfLoadAsync(null));
+
+        // Test empty path throws ArgumentException
+        await Assert.ThrowsAsync<ArgumentException>(() => client.UdfLoadAsync(""));
+
+        // Test whitespace path throws ArgumentException
+        await Assert.ThrowsAsync<ArgumentException>(() => client.UdfLoadAsync("   "));
+    }
+
+    [Fact]
+    public async System.Threading.Tasks.Task TestUdfDeleteAsyncParameterValidation()
+    {
+        var client = new FalkorDB(RedisConnectionString);
+
+        // Test null function name throws ArgumentException
+        await Assert.ThrowsAsync<ArgumentException>(() => client.UdfDeleteAsync(null));
+
+        // Test empty function name throws ArgumentException
+        await Assert.ThrowsAsync<ArgumentException>(() => client.UdfDeleteAsync(""));
+
+        // Test whitespace function name throws ArgumentException
+        await Assert.ThrowsAsync<ArgumentException>(() => client.UdfDeleteAsync("   "));
     }
 
     protected override void BeforeTest()
