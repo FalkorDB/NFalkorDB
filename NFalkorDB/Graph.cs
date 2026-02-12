@@ -14,7 +14,7 @@ public class Graph
 {
     internal static readonly object CompactQueryFlag = "--COMPACT";
 
-    string _graphId;
+    RedisKey _graphId;
     IGraphCache _cache;
     private readonly IDatabase _db;
 
@@ -25,7 +25,7 @@ public class Graph
     /// <param name="db"></param>
     internal Graph(string graphId, IDatabase db)
     {
-        _graphId = graphId;
+        _graphId = new RedisKey(graphId);
         _cache = new GraphCache(graphId, this);
         _db = db;
     }
