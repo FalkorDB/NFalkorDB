@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Threading.Tasks;
 using Xunit;
 using static NFalkorDB.Statistics;
 
@@ -413,6 +414,22 @@ public class FalkorDBAPITest : BaseTest
         var indicesResult = _api.ListIndices();
         // Shape is server-dependent; just ensure the call succeeds and returns a header
         Assert.NotNull(indicesResult);
+    }
+
+    [Fact]
+    public async Task TestIndexHelpersListIndicesAsync()
+    {
+        var indicesResult = await _api.ListIndicesAsync();
+        // Shape is server-dependent; just ensure the call succeeds and returns a header
+        Assert.NotNull(indicesResult);
+    }
+
+    [Fact]
+    public async Task TestIndexHelpersListConstraintsAsync()
+    {
+        var constraints = await _api.ListConstraintsAsync();
+        // Shape is server-dependent; just ensure the call succeeds and returns a header
+        Assert.NotNull(constraints);
     }
 
     [Fact]
