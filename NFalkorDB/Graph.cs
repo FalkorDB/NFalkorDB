@@ -291,7 +291,7 @@ public class Graph
 
         queryBody.Append(args != null ? $"CALL {procedure}({string.Join(",", args)})" : $"CALL {procedure}()");
 
-        if (kwargs != null && kwargs.TryGetValue("y", out var kwargsList) && kwargsList.Count > 0)
+        if (kwargs != null && kwargs.TryGetValue("y", out var kwargsList) && kwargsList != null && kwargsList.Count > 0)
         {
             queryBody.Append($" YIELD {string.Join(",", kwargsList)}");
         }
