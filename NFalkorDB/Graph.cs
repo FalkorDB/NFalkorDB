@@ -283,7 +283,7 @@ public class Graph
         return ReadOnlyQueryAsync(queryBody, flags: flags);
     }
 
-    private static string BuildQueryBodyForProcedureCall(string procedure, ref IEnumerable<string> args, Dictionary<string, List<string>> kwargs)
+    internal static string BuildQueryBodyForProcedureCall(string procedure, ref IEnumerable<string> args, Dictionary<string, List<string>> kwargs)
     {
         args = args?.Select(QuoteString);
 
@@ -291,9 +291,9 @@ public class Graph
 
         queryBody.Append(args != null ? $"CALL {procedure}({string.Join(",", args)})" : $"CALL {procedure}()");
 
-        if (kwargs != null && kwargs.TryGetValue("y", out var kwargsList))
+        if (kwargs != null && kwargs.TryGetValue("y", out var kwargsList) && kwargsList.Count > 0)
         {
-            queryBody.Append(string.Join(",", kwargsList));
+            queryBody.Append($" YIELD {string.Join(",", kwargsList)}");
         }
 
         return queryBody.ToString();
