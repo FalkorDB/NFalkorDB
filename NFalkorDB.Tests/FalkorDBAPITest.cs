@@ -419,6 +419,7 @@ public class FalkorDBAPITest : BaseTest
     [Fact]
     public async Task TestIndexHelpersListIndicesAsync()
     {
+        _api.Query("CREATE (:seed)");
         var indicesResult = await _api.ListIndicesAsync();
         // Shape is server-dependent; just ensure the call succeeds and returns a header
         Assert.NotNull(indicesResult);
@@ -427,6 +428,7 @@ public class FalkorDBAPITest : BaseTest
     [Fact]
     public async Task TestIndexHelpersListConstraintsAsync()
     {
+        _api.Query("CREATE (:seed)");
         var constraints = await _api.ListConstraintsAsync();
         // Shape is server-dependent; just ensure the call succeeds and returns a header
         Assert.NotNull(constraints);
