@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Threading.Tasks;
 using Xunit;
 using static NFalkorDB.Statistics;
 
@@ -413,6 +414,24 @@ public class FalkorDBAPITest : BaseTest
         var indicesResult = _api.ListIndices();
         // Shape is server-dependent; just ensure the call succeeds and returns a header
         Assert.NotNull(indicesResult);
+    }
+
+    [Fact]
+    public async Task TestIndexHelpersListIndicesAsync()
+    {
+        _api.Query("CREATE (:seed)");
+        var indicesResult = await _api.ListIndicesAsync();
+        // Shape is server-dependent; just ensure the call succeeds and returns a header
+        Assert.NotNull(indicesResult);
+    }
+
+    [Fact]
+    public async Task TestIndexHelpersListConstraintsAsync()
+    {
+        _api.Query("CREATE (:seed)");
+        var constraints = await _api.ListConstraintsAsync();
+        // Shape is server-dependent; just ensure the call succeeds and returns a header
+        Assert.NotNull(constraints);
     }
 
     [Fact]
@@ -1246,5 +1265,90 @@ public class FalkorDBAPITest : BaseTest
         // after reset, call should still succeed
         var afterReset = _api.Slowlog();
         Assert.NotNull(afterReset);
+    }
+
+    [Theory]
+    [InlineData(new string[0], "CALL dbms.functions()")]
+    [InlineData(new[] { "name" }, "CALL dbms.functions() YIELD name")]
+    [InlineData(new[] { "name", "internal" }, "CALL dbms.functions() YIELD name,internal")]
+    public void BuildQueryBodyForProcedureCall(string[] fields, string expected)
+    {
+        var kwargs = new Dictionary<string, List<string>>
+        {
+            { "y", fields.ToList() }
+        };
+        var args = Enumerable.Empty<string>();
+
+        var body = Graph.BuildQueryBodyForProcedureCall("dbms.functions", ref args, kwargs);
+
+        Assert.Equal(expected, body);
+    }
+
+    [Fact]
+    public void TestCallProcedureWithYield()
+    {
+        _api.Query("CREATE (:Person {name:'roi'})");
+
+        var kwargs = new Dictionary<string, List<string>>
+        {
+            { "y", new List<string> { "name", "internal" } }
+        };
+
+        var result = _api.CallProcedure("dbms.functions", null, kwargs);
+
+        Assert.Equal(2, result.First().Values.Count);
+        Assert.IsType<string>(result.First().Values[0]);
+        Assert.IsType<bool>(result.First().Values[1]);
+    }
+
+    [Fact]
+    public void TestCallProcedureReadOnlyWithYield()
+    {
+        _api.Query("CREATE (:Person {name:'roi'})");
+
+        var kwargs = new Dictionary<string, List<string>>
+        {
+            { "y", new List<string> { "name", "internal" } }
+        };
+
+        var result = _api.CallProcedureReadOnly("dbms.functions", null, kwargs);
+
+        Assert.Equal(2, result.First().Values.Count);
+        Assert.IsType<string>(result.First().Values[0]);
+        Assert.IsType<bool>(result.First().Values[1]);
+    }
+
+    [Fact]
+    public async Task TestCallProcedureAsyncWithYield()
+    {
+        _api.Query("CREATE (:Person {name:'roi'})");
+
+        var kwargs = new Dictionary<string, List<string>>
+        {
+            { "y", new List<string> { "name", "internal" } }
+        };
+
+        var result = await _api.CallProcedureAsync("dbms.functions", null, kwargs);
+
+        Assert.Equal(2, result.First().Values.Count);
+        Assert.IsType<string>(result.First().Values[0]);
+        Assert.IsType<bool>(result.First().Values[1]);
+    }
+
+    [Fact]
+    public async Task TestCallProcedureReadOnlyAsyncWithYield()
+    {
+        _api.Query("CREATE (:Person {name:'roi'})");
+
+        var kwargs = new Dictionary<string, List<string>>
+        {
+            { "y", new List<string> { "name", "internal" } }
+        };
+
+        var result = await _api.CallProcedureReadOnlyAsync("dbms.functions", null, kwargs);
+
+        Assert.Equal(2, result.First().Values.Count);
+        Assert.IsType<string>(result.First().Values[0]);
+        Assert.IsType<bool>(result.First().Values[1]);
     }
 }
