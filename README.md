@@ -3,6 +3,7 @@
 [![license](https://img.shields.io/github/license/FalkorDB/NFalkorDB.svg)](https://github.com/FalkorDB/NFalkorDB/blob/master/LICENSE)
 [![Release](https://img.shields.io/github/release/FalkorDB/NFalkorDB.svg)](https://github.com/FalkorDB/NFalkorDB/releases/latest)
 [![Build Status](https://github.com/falkordb/NFalkorDB/actions/workflows/dotnet.yml/badge.svg)](https://github.com/falkordb/NFalkorDB/actions/workflows/dotnet.yml)
+[![codecov](https://codecov.io/gh/FalkorDB/NFalkorDB/branch/master/graph/badge.svg)](https://codecov.io/gh/FalkorDB/NFalkorDB)
 
 # NFalkorDB
 
