@@ -12,6 +12,18 @@ namespace NFalkorDB;
 /// </summary>
 public sealed class FalkorDB
 {
+    /// <summary>
+    /// Sync/async operation timeout applied when the configuration does not specify one:
+    /// effectively no client-side deadline. Graph queries routinely exceed
+    /// StackExchange.Redis' default 5000ms timeout (bulk loads, deep traversals), which
+    /// would otherwise fail the call with a <see cref="RedisTimeoutException"/> while the
+    /// server keeps executing the query - so retrying could duplicate writes. Query
+    /// duration is governed by the server's TIMEOUT / TIMEOUT_DEFAULT configuration
+    /// instead, matching the other FalkorDB clients. To use a different timeout, pass
+    /// <c>syncTimeout=...</c> / <c>asyncTimeout=...</c> in the configuration string.
+    /// </summary>
+    private const int DefaultOperationTimeoutMilliseconds = int.MaxValue;
+
     private readonly IDatabase _db;
 
     /// <summary>
@@ -34,8 +46,29 @@ public sealed class FalkorDB
             throw new ArgumentException("Configuration must be provided.", nameof(configuration));
         }
 
-        var mux = ConnectionMultiplexer.Connect(configuration);
+        var mux = ConnectionMultiplexer.Connect(BuildConfiguration(configuration));
         _db = mux.GetDatabase();
+    }
+
+    /// <summary>
+    /// Parses the configuration and removes the client-side operation timeout unless the
+    /// caller set one explicitly (see <see cref="DefaultOperationTimeoutMilliseconds"/>).
+    /// </summary>
+    private static ConfigurationOptions BuildConfiguration(string configuration)
+    {
+        var options = ConfigurationOptions.Parse(configuration);
+
+        if (configuration.IndexOf("syncTimeout=", StringComparison.OrdinalIgnoreCase) < 0)
+        {
+            options.SyncTimeout = DefaultOperationTimeoutMilliseconds;
+        }
+
+        if (configuration.IndexOf("asyncTimeout=", StringComparison.OrdinalIgnoreCase) < 0)
+        {
+            options.AsyncTimeout = DefaultOperationTimeoutMilliseconds;
+        }
+
+        return options;
     }
 
     /// <summary>
