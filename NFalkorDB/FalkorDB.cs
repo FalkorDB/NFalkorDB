@@ -32,7 +32,7 @@ public sealed class FalkorDB
     /// <param name="db">Existing StackExchange.Redis database instance to use.</param>
     public FalkorDB(IDatabase db = null)
     {
-        _db = db ?? ConnectionMultiplexer.Connect("localhost").GetDatabase();
+        _db = db ?? ConnectionMultiplexer.Connect(BuildConfiguration("localhost")).GetDatabase();
     }
 
     /// <summary>
