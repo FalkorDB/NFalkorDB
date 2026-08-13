@@ -5,15 +5,15 @@
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <Authors>Tom Hanks (tombatron), John Weber (jweber), Jason Geyen (jgeyen), Rolf Wessels (rolfwessels), Rob Povey (polygonhell)</Authors>
     <Company />
-    <AssemblyVersion>1.0.6.0</AssemblyVersion>
-    <FileVersion>1.0.6.0</FileVersion>
-    <Version>1.0.6</Version>
-    <Description>A series of extension methods for use with StackExchange.Redis 2.x and the FalkorDB Redis module.</Description>
+    <AssemblyVersion>1.1.0.0</AssemblyVersion>
+    <FileVersion>1.1.0.0</FileVersion>
+    <Version>1.1.0</Version>
+    <Description>A series of extension methods for use with StackExchange.Redis 3.x and the FalkorDB Redis module.</Description>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <RepositoryUrl>https://github.com/falkordb/NFalkorDB</RepositoryUrl>
     <ProjectRepository>https://github.com/falkordb/NFalkorDB</ProjectRepository>
     <LangVersion>latest</LangVersion>
-    <PackageVersion>1.0.6</PackageVersion>
+    <PackageVersion>1.1.0</PackageVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
@@ -29,6 +29,7 @@
     <PackageLicenseFile>license.txt</PackageLicenseFile>
     <PackageReleaseNotes>    1.0.0 - Initial version.
                              1.0.1 - Added default constructor.
+                             1.1.0 - Target StackExchange.Redis 3.x; fix ListGraphs, which sent CommandFlags as a command argument and always returned an empty list.
     </PackageReleaseNotes>
   </PropertyGroup>
 
