@@ -211,7 +211,7 @@ public class FalkorDBAPITest : BaseTest
         {
             try
             {
-                _muxr = ConnectionMultiplexer.Connect(RedisConnectionString);
+                _muxr = ConnectionMultiplexer.Connect(AdminConnectionOptions);
                 _muxr.GetDatabase().Execute("FLUSHDB");
 
                 _api = new FalkorDB(_muxr.GetDatabase(0)).SelectGraph("social");
