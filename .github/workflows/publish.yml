@@ -9,6 +9,10 @@ jobs:
 
     runs-on: ubuntu-24.04
 
+    permissions:
+      contents: read
+      id-token: write # required to request the OIDC token for NuGet Trusted Publishing
+
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
     - name: Setup .NET
@@ -21,7 +25,10 @@ jobs:
       run: dotnet restore
     - name: Build
       run: dotnet build --no-restore --configuration Release                
+    - name: NuGet login (OIDC -> short-lived API key)
+      uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
+      id: login
+      with:
+        user: ${{ vars.NUGET_USER || 'FalkorDB' }}
     - name: Publish NuGet Package
-      env:
-        api_key: ${{secrets.NUGET_API_KEY}}
-      run: "dotnet nuget push NFalkorDB/bin/Release/*.nupkg --skip-duplicate --source https://api.nuget.org/v3/index.json --api-key $api_key"
+      run: "dotnet nuget push NFalkorDB/bin/Release/*.nupkg --skip-duplicate --source https://api.nuget.org/v3/index.json --api-key ${{ steps.login.outputs.NUGET_API_KEY }}"
