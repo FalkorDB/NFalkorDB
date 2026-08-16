@@ -1,6 +1,5 @@
 using System.Text;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace NFalkorDB;
 
@@ -66,7 +65,20 @@ public abstract class GraphEntity
             return false;
         }
 
-        return Id == that.Id && PropertyMap.SequenceEqual(that.PropertyMap);
+        if (Id != that.Id || PropertyMap.Count != that.PropertyMap.Count)
+        {
+            return false;
+        }
+
+        foreach (var property in PropertyMap)
+        {
+            if (!that.PropertyMap.TryGetValue(property.Key, out var otherValue) || !Equals(property.Value, otherValue))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /// <summary>
@@ -79,14 +91,20 @@ public abstract class GraphEntity
         unchecked
         {
             int hash = 17;
+            int propertyMapHash = 0;
 
             hash = hash * 31 + Id.GetHashCode();
 
-            foreach(var prop in PropertyMap)
+            foreach (var prop in PropertyMap)
             {
-                hash = hash * 31 + prop.Key.GetHashCode();
-                hash = hash * 31 + prop.Value.GetHashCode();
+                var keyHash = prop.Key?.GetHashCode() ?? 0;
+                var valueHash = prop.Value?.GetHashCode() ?? 0;
+
+                propertyMapHash += (keyHash * 397) ^ valueHash;
             }
+
+            hash = hash * 31 + PropertyMap.Count.GetHashCode();
+            hash = hash * 31 + propertyMapHash;
 
             return hash;
         }
