@@ -78,4 +78,24 @@ public class RecordTests
 
         Assert.NotEqual(recordA, recordB);
     }
+
+    [Fact]
+    public void KeyOrderIsSignificant()
+    {
+        var recordA = new Record(new List<string> { "a", "b" }, new List<object> { 1L, 2L });
+        var recordB = new Record(new List<string> { "b", "a" }, new List<object> { 1L, 2L });
+
+        Assert.NotEqual(recordA, recordB);
+    }
+
+    [Fact]
+    public void EqualityAndHashCodeTreatNaNValuesAsEqual()
+    {
+        var recordA = new Record(new List<string> { "a" }, new List<object> { double.NaN });
+        var recordB = new Record(new List<string> { "a" }, new List<object> { double.NaN });
+
+        Assert.Equal(recordA, recordB);
+        Assert.Equal(recordA.GetHashCode(), recordB.GetHashCode());
+        Assert.Contains(recordB, new HashSet<Record> { recordA });
+    }
 }

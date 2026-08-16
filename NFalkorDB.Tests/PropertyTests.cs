@@ -50,6 +50,17 @@ public class PropertyTests
         { null, null },
         { new DateTime(2024, 1, 2, 3, 4, 5, DateTimeKind.Utc), new DateTime(2024, 1, 2, 3, 4, 5, DateTimeKind.Utc) },
         { TimeSpan.FromMilliseconds(1234), TimeSpan.FromMilliseconds(1234) },
+        { double.NaN, double.NaN },
+        { float.NaN, float.NaN },
+        { double.PositiveInfinity, double.PositiveInfinity },
+        { 0.0d, -0.0d },
+        { new object[] { double.NaN, 1.0d }, new object[] { double.NaN, 1.0d } },
+        { new[] { double.NaN }, new[] { double.NaN } },
+        {
+            new Dictionary<string, object> { { "a", double.NaN } },
+            new Dictionary<string, object> { { "a", double.NaN } }
+        },
+        { new Point(double.NaN, 2.5), new Point(double.NaN, 2.5) },
         { new Point(1.5, 2.5), new Point(1.5, 2.5) },
         { new[] { 1, 2, 3 }, new[] { 1, 2, 3 } },
         { new[] { 1L, 2L, 3L }, new[] { 1L, 2L, 3L } },
@@ -80,6 +91,8 @@ public class PropertyTests
         { new DateTime(2024, 1, 2, 3, 4, 5, DateTimeKind.Utc), new DateTime(2024, 1, 2, 3, 4, 6, DateTimeKind.Utc) },
         { TimeSpan.FromMilliseconds(1234), TimeSpan.FromMilliseconds(4321) },
         { new Point(1.5, 2.5), new Point(2.5, 1.5) },
+        { double.NaN, 1.0d },
+        { double.PositiveInfinity, double.NegativeInfinity },
         { new[] { 1, 2, 3 }, new[] { 1, 2 } },
         { new[] { 1, 2, 3 }, new[] { 1, 2, 4 } },
         {

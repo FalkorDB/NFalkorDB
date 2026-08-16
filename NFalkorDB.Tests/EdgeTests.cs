@@ -59,4 +59,17 @@ public class EdgeTests
 
         Assert.Null(exception);
     }
+
+    [Fact]
+    public void ToStringToleratesNullPropertyEntries()
+    {
+        var edge = new Edge();
+        edge.Id = 100;
+        edge.RelationshipType = "R1";
+        edge.PropertyMap["missing"] = null;
+
+        var exception = Xunit.Record.Exception(() => edge.ToString());
+
+        Assert.Null(exception);
+    }
 }        

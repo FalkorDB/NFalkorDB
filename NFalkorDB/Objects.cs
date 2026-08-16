@@ -46,9 +46,12 @@ internal static class Objects
             case ulong o1:
                 return o1 == (ulong)obj2;
             case float o1:
-                return o1 == (float)obj2;
+                // `Equals` rather than `==` so that NaN equals NaN, matching both the hash codes
+                // produced by GetValueHashCode and the equality used for `Point` and for values
+                // nested inside collections.
+                return o1.Equals((float)obj2);
             case double o1:
-                return o1 == (double)obj2;
+                return o1.Equals((double)obj2);
             case decimal o1:
                 return o1 == (decimal)obj2;
             case char o1:

@@ -87,7 +87,7 @@ public class Edge : GraphEntity
         sb.Append($", destination={Destination}");
         sb.Append($", id={Id}");
         sb.Append(", propertyMap={");
-        sb.Append(string.Join(", ", PropertyMap.Select(pm => $"{pm.Key}={pm.Value.ToString()}")));
+        sb.Append(string.Join(", ", PropertyMap.Select(pm => $"{pm.Key}={pm.Value}")));
         sb.Append("}}");
 
         return sb.ToString();
