@@ -65,7 +65,7 @@ public class Edge : GraphEntity
             int hash = 17;
 
             hash = hash * 31 + base.GetHashCode();
-            hash = hash * 31 + RelationshipType.GetHashCode();
+            hash = hash * 31 + (RelationshipType?.GetHashCode() ?? 0);
             hash = hash * 31 + Source.GetHashCode();
             hash = hash * 31 + Destination.GetHashCode();
 

@@ -46,4 +46,17 @@ public class EdgeTests
         Assert.Equal(edgeA, edgeB);
         Assert.Equal(edgeA.GetHashCode(), edgeB.GetHashCode());
     }
+
+    [Fact]
+    public void HashCodeToleratesNullRelationshipType()
+    {
+        var edge = new Edge();
+        edge.Id = 100;
+        edge.Source = 1;
+        edge.Destination = 2;
+
+        var exception = Xunit.Record.Exception(() => edge.GetHashCode());
+
+        Assert.Null(exception);
+    }
 }        

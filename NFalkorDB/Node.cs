@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -38,7 +39,8 @@ public sealed class Node : GraphEntity
 
     /// <summary>
     /// Overriden member that checks to see if the names of the labels of a node are equal 
-    /// (in addition to base `Equals` functionality).
+    /// (in addition to base `Equals` functionality). Label order is not significant, since the server
+    /// is free to return labels in any order.
     /// </summary>
     /// <param name="obj"></param>
     /// <returns></returns>
@@ -59,12 +61,34 @@ public sealed class Node : GraphEntity
             return false;
         }
 
-        return Enumerable.SequenceEqual(_labels, that._labels);
+        return LabelsAreEquivalent(_labels, that._labels);
+    }
+
+    private static bool LabelsAreEquivalent(List<string> theseLabels, List<string> thoseLabels)
+    {
+        if (theseLabels.Count != thoseLabels.Count)
+        {
+            return false;
+        }
+
+        if (theseLabels.Count == 0)
+        {
+            return true;
+        }
+
+        var sortedTheseLabels = new List<string>(theseLabels);
+        var sortedThoseLabels = new List<string>(thoseLabels);
+
+        sortedTheseLabels.Sort(StringComparer.Ordinal);
+        sortedThoseLabels.Sort(StringComparer.Ordinal);
+
+        return Enumerable.SequenceEqual(sortedTheseLabels, sortedThoseLabels);
     }
 
     /// <summary>
     /// Overridden member that computes a hash code based on the base `GetHashCode` implementation
-    /// as well as the hash codes of all labels.
+    /// as well as the hash codes of all labels. The label contribution is order-independent so that
+    /// equal nodes always produce equal hash codes.
     /// </summary>
     /// <returns></returns>
     public override int GetHashCode()
@@ -72,12 +96,15 @@ public sealed class Node : GraphEntity
         unchecked
         {
             int hash = 17;
-            
-            foreach(var label in _labels)
+            int labelsHash = 0;
+
+            foreach (var label in _labels)
             {
-                hash = hash * 31 + label.GetHashCode();
+                labelsHash += label?.GetHashCode() ?? 0;
             }
 
+            hash = hash * 31 + _labels.Count.GetHashCode();
+            hash = hash * 31 + labelsHash;
             hash = hash * 31 + base.GetHashCode();
 
             return hash;

@@ -97,7 +97,10 @@ public abstract class GraphEntity
 
             foreach (var prop in PropertyMap)
             {
-                propertyMapHash += (prop.Key.GetHashCode() * 397) ^ prop.Value.GetHashCode();
+                var keyHash = prop.Key?.GetHashCode() ?? 0;
+                var valueHash = prop.Value?.GetHashCode() ?? 0;
+
+                propertyMapHash += (keyHash * 397) ^ valueHash;
             }
 
             hash = hash * 31 + PropertyMap.Count.GetHashCode();
