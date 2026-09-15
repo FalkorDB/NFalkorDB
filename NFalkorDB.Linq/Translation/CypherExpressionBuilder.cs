@@ -236,13 +236,13 @@ internal sealed class CypherExpressionBuilder
             }
 
             case ExpressionType.GreaterThan:
-                return Comparison(left, right, ">");
+                return RelationalComparison(left, right, ">");
             case ExpressionType.GreaterThanOrEqual:
-                return Comparison(left, right, ">=");
+                return RelationalComparison(left, right, ">=");
             case ExpressionType.LessThan:
-                return Comparison(left, right, "<");
+                return RelationalComparison(left, right, "<");
             case ExpressionType.LessThanOrEqual:
-                return Comparison(left, right, "<=");
+                return RelationalComparison(left, right, "<=");
 
             case ExpressionType.AndAlso:
                 return Infix(left, right, "AND", PrecedenceAnd);
@@ -446,6 +446,27 @@ internal sealed class CypherExpressionBuilder
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Renders an ordered comparison, rejecting enum operands.
+    /// </summary>
+    /// <remarks>
+    /// Enum values are written to the graph as member names, so <c>&lt;</c> and <c>&gt;</c> would
+    /// compare those names lexically rather than by the underlying value. Equality is unaffected,
+    /// because two names are equal exactly when the members are.
+    /// </remarks>
+    private CypherFragment RelationalComparison(Expression left, Expression right, string @operator)
+    {
+        var enumType = FindEnumType(left) ?? FindEnumType(right);
+
+        if (enumType != null)
+        {
+            throw new NotSupportedException(
+                $"'{@operator}' cannot be applied to the enum '{enumType.Name}', because enum values are stored as member names and Cypher would compare them lexically instead of by their underlying value. Compare for equality instead, or map the property to a numeric type.");
+        }
+
+        return Comparison(left, right, @operator);
     }
 
     private CypherFragment Comparison(Expression left, Expression right, string @operator)

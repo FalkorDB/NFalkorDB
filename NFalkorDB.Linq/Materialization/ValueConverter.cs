@@ -80,7 +80,7 @@ internal static class ValueConverter
 
         if (target == typeof(DateTimeOffset))
         {
-            return new DateTimeOffset(ConvertDateTime(value, targetType, context), TimeSpan.Zero);
+            return ConvertDateTimeOffset(value, targetType, context);
         }
 
         if (target == typeof(TimeSpan))
@@ -143,13 +143,22 @@ internal static class ValueConverter
             }
         }
 
-        if (value is IConvertible)
+        // Only an integral value can name an enum member. Accepting every IConvertible would turn
+        // `true` into the member with value 1, and round 2.5 into the member with value 2, hiding
+        // a genuine type mismatch.
+        if (IsIntegral(value))
         {
             return Enum.ToObject(target, System.Convert.ToInt64(value, CultureInfo.InvariantCulture));
         }
 
         throw Mismatch(value, target, context);
     }
+
+    private static bool IsIntegral(object value) =>
+        value is byte || value is sbyte ||
+        value is short || value is ushort ||
+        value is int || value is uint ||
+        value is long || value is ulong;
 
     private static string ConvertString(object value, string context)
     {
@@ -166,6 +175,39 @@ internal static class ValueConverter
         }
 
         throw Mismatch(value, typeof(string), context);
+    }
+
+    /// <summary>
+    /// Reads a stored value as a <see cref="DateTimeOffset"/>, keeping the offset it was written
+    /// with.
+    /// </summary>
+    /// <remarks>
+    /// The parameter binder writes these with the round-trip "o" format, which carries the offset,
+    /// so parsing as <see cref="DateTime"/> first would reinterpret the instant in local time and
+    /// then fail to pair it with a zero offset.
+    /// </remarks>
+    private static DateTimeOffset ConvertDateTimeOffset(object value, Type targetType, string context)
+    {
+        switch (value)
+        {
+            case DateTimeOffset offset:
+                return offset;
+
+            // FalkorDB has no offset-aware temporal type, so an unqualified value is read as UTC
+            // rather than as the reading machine's local time.
+            case DateTime dateTime:
+                return new DateTimeOffset(dateTime.Kind == DateTimeKind.Unspecified
+                    ? DateTime.SpecifyKind(dateTime, DateTimeKind.Utc)
+                    : dateTime);
+
+            case long epochMilliseconds:
+                return DateTimeOffset.FromUnixTimeMilliseconds(epochMilliseconds);
+
+            case string text when DateTimeOffset.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var parsed):
+                return parsed;
+        }
+
+        throw Mismatch(value, targetType, context);
     }
 
     private static DateTime ConvertDateTime(object value, Type targetType, string context)

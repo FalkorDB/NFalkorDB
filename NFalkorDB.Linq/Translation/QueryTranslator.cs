@@ -200,11 +200,13 @@ internal sealed class QueryTranslator
                 return;
 
             case nameof(Queryable.Min):
+                GuardNotEnumOrdered(call.Method.ReturnType, nameof(Queryable.Min));
                 ApplyOptionalSelector(call);
                 ApplyTerminal(TerminalOperator.Min, call.Method.ReturnType);
                 return;
 
             case nameof(Queryable.Max):
+                GuardNotEnumOrdered(call.Method.ReturnType, nameof(Queryable.Max));
                 ApplyOptionalSelector(call);
                 ApplyTerminal(TerminalOperator.Max, call.Method.ReturnType);
                 return;
@@ -444,7 +446,27 @@ internal sealed class QueryTranslator
         var bindings = BindCurrent(keySelector.Parameters[0]);
         var expression = new CypherExpressionBuilder(_parameters, bindings).Translate(keySelector.Body);
 
+        GuardNotEnumOrdered(keySelector.Body.Type, descending ? "OrderByDescending" : "OrderBy");
+
         _model.OrderByTerms.Add(new OrderByTerm(expression, descending));
+    }
+
+    /// <summary>
+    /// Rejects ordering or extrema over an enum, which the graph stores as a member name.
+    /// </summary>
+    /// <remarks>
+    /// Cypher would sort those names lexically — <c>Good, Great, Poor</c> — rather than by the
+    /// underlying values that LINQ orders by — <c>Poor, Good, Great</c>.
+    /// </remarks>
+    private static void GuardNotEnumOrdered(Type type, string @operator)
+    {
+        var unwrapped = ScalarTypes.Unwrap(type);
+
+        if (unwrapped.IsEnum)
+        {
+            throw new NotSupportedException(
+                $"'{@operator}' cannot be applied to the enum '{unwrapped.Name}', because enum values are stored as member names and Cypher would order them lexically instead of by their underlying value. Order by a numeric property instead, or map the property to its numeric value.");
+        }
     }
 
     private void ApplySkip(long count)

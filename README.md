@@ -301,6 +301,19 @@ from the matched rows. Reordering them throws a `NotSupportedException` explaini
 Labels, relationship types and property keys are escaped as Cypher identifiers, so
 `[Property("first-name")]` renders as ``n0.`first-name` `` rather than being parsed as a subtraction.
 
+### Enums
+
+Enum properties are stored as member names, which keeps the graph readable and makes equality work
+naturally: `Where(p => p.Rating == Rating.Great)` renders `n0.rating = $p0` with `$p0` bound to
+`"Great"`.
+
+The trade-off is that Cypher then compares those names lexically. Ordering `Poor`, `Good`, `Great`
+by name gives `Good, Great, Poor`, not the `0, 1, 2` order LINQ uses. Rather than return a different
+order than LINQ would, the provider rejects the operations where this matters — `OrderBy`,
+`OrderByDescending`, `ThenBy`, `ThenByDescending`, `Min`, `Max`, and the relational operators
+`<`, `<=`, `>`, `>=` — with a `NotSupportedException`. Equality, `!=` and `Contains` are unaffected.
+Map the property to a numeric type if you need to order by it.
+
 ## License
 
 NFalkorDB is licensed under the Apache-2.0 [license ](https://github.com/FalkorDB/NFalkorDB/blob/master/LICENSE).

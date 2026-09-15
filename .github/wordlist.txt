@@ -71,3 +71,6 @@ LINQ
 Linq
 CLR
 Parameterization
+Enum
+Enums
+lexically

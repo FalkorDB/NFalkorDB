@@ -310,4 +310,67 @@ public class UnsupportedExpressionTests
 
         Assert.Equal("MATCH (n0:Person) WHERE n0.name IN $p0 RETURN n0", query.Cypher);
     }
+
+    [Theory]
+    [InlineData("OrderBy")]
+    [InlineData("OrderByDescending")]
+    [InlineData("Min")]
+    [InlineData("Max")]
+    public void Ordering_an_enum_is_rejected_because_names_sort_lexically(string @operator)
+    {
+        // Stored as member names, so Cypher sorts Good, Great, Poor rather than Poor, Good, Great.
+        var source = QueryHarnessExtensions.Nodes<Person>();
+
+        var message = Throws(() =>
+        {
+            switch (@operator)
+            {
+                case "OrderBy":
+                    source.OrderBy(p => p.Rating).ToCypherQuery();
+                    break;
+                case "OrderByDescending":
+                    source.OrderByDescending(p => p.Rating).ToCypherQuery();
+                    break;
+                case "Min":
+                    source.Min(p => p.Rating);
+                    break;
+                default:
+                    source.Max(p => p.Rating);
+                    break;
+            }
+        });
+
+        Assert.Contains("Rating", message);
+        Assert.Contains("lexically", message);
+    }
+
+    [Fact]
+    public void A_relational_comparison_on_an_enum_is_rejected()
+    {
+        var message = Throws(() => QueryHarnessExtensions.Nodes<Person>()
+            .Where(p => p.Rating > Rating.Poor)
+            .ToCypherQuery());
+
+        Assert.Contains("'>'", message);
+        Assert.Contains("Rating", message);
+    }
+
+    [Fact]
+    public void Enum_equality_is_unaffected_and_binds_the_member_name()
+    {
+        var query = QueryHarnessExtensions.Nodes<Person>()
+            .Where(p => p.Rating == Rating.Great)
+            .ToCypherQuery();
+
+        Assert.Equal("MATCH (n0:Person) WHERE n0.rating = $p0 RETURN n0", query.Cypher);
+        Assert.Equal("Great", Assert.Contains("p0", query.Parameters));
+    }
+
+    [Fact]
+    public void Ordering_a_non_enum_column_is_still_supported()
+    {
+        Assert.Equal(
+            "MATCH (n0:Person) RETURN n0 ORDER BY n0.age ASC",
+            QueryHarnessExtensions.Nodes<Person>().OrderBy(p => p.Age).Cypher());
+    }
 }
