@@ -514,7 +514,16 @@ public class TranslationTests
     [Fact]
     public void All_becomes_a_negated_count_comparison()
     {
-        AssertTerminal(h => h.Nodes<Person>().All(p => p.Active), "MATCH (n0:Person) WHERE NOT n0.active RETURN count(*) = 0");
+        // The coalesce is what makes a row whose property is missing count as a violation, matching
+        // LINQ, instead of being dropped by Cypher's three-valued logic.
+        AssertTerminal(
+            h => h.Nodes<Person>().All(p => p.Active),
+            "MATCH (n0:Person) WHERE NOT coalesce(n0.active, false) RETURN count(*) = 0");
+
+        AssertTerminal(
+            h => h.Nodes<Person>().All(p => p.Age > 21),
+            "MATCH (n0:Person) WHERE NOT coalesce(n0.age > $p0, false) RETURN count(*) = 0",
+            21L);
     }
 
     [Fact]

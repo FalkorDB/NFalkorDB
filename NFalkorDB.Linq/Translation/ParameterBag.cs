@@ -89,18 +89,21 @@ internal sealed class ParameterBag
                     $"A Point value ({point}) cannot be used as a query parameter. Compare the individual coordinates, or use distance() through a raw Cypher query.");
         }
 
-        if (value is IDictionary<string, object> map)
+        // Any dictionary keyed by string is a Cypher map, not a collection of key/value pairs.
+        // Matching the non-generic interface catches Dictionary<string, int> and friends, which
+        // would otherwise fall through to the IEnumerable branch and fail on KeyValuePair.
+        if (value is IDictionary map && IsStringKeyed(value.GetType()))
         {
             var normalizedMap = new Dictionary<string, object>(map.Count, StringComparer.Ordinal);
 
-            foreach (var entry in map)
+            foreach (DictionaryEntry entry in map)
             {
                 if (entry.Key == null)
                 {
                     throw new NotSupportedException("A map used as a query parameter cannot have a null key.");
                 }
 
-                normalizedMap[CypherIdentifier.Escape(entry.Key)] = Normalize(entry.Value);
+                normalizedMap[CypherIdentifier.Escape((string)entry.Key)] = Normalize(entry.Value);
             }
 
             return normalizedMap;
@@ -113,5 +116,20 @@ internal sealed class ParameterBag
 
         throw new NotSupportedException(
             $"Values of type '{value.GetType().FullName}' cannot be used as a FalkorDB query parameter.");
+    }
+
+    private static bool IsStringKeyed(Type type)
+    {
+        foreach (var contract in type.GetInterfaces())
+        {
+            if (contract.IsGenericType &&
+                contract.GetGenericTypeDefinition() == typeof(IDictionary<,>) &&
+                contract.GetGenericArguments()[0] == typeof(string))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

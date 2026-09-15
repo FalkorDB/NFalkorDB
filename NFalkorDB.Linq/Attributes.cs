@@ -12,12 +12,20 @@ public sealed class NodeAttribute : Attribute
     /// <summary>
     /// Declares one or more labels for the annotated type.
     /// </summary>
-    /// <param name="labels">The labels the node is stored under. At least one label is required.</param>
+    /// <param name="labels">The labels the node is stored under. At least one label is required, and no label may be null or blank.</param>
     public NodeAttribute(params string[] labels)
     {
         if (labels == null || labels.Length == 0)
         {
             throw new ArgumentException("A [Node] attribute requires at least one label.", nameof(labels));
+        }
+
+        foreach (var label in labels)
+        {
+            if (string.IsNullOrWhiteSpace(label))
+            {
+                throw new ArgumentException("A [Node] label cannot be null, empty or blank.", nameof(labels));
+            }
         }
 
         Labels = labels;

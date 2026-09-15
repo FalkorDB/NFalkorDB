@@ -340,9 +340,12 @@ internal sealed class QueryTranslator
         GuardNotPaged("Where");
 
         var bindings = BindCurrent(predicate.Parameters[0]);
-        var body = negate ? (Expression)Expression.Not(predicate.Body) : predicate.Body;
+        var translated = new CypherExpressionBuilder(_parameters, bindings).TranslatePredicate(predicate.Body);
 
-        _model.WhereClauses.Add(new CypherExpressionBuilder(_parameters, bindings).TranslatePredicate(body));
+        // Cypher's three-valued logic makes a plain NOT the wrong negation: a predicate over a
+        // missing property evaluates to null, and NOT null is null, so the row would be dropped
+        // rather than counted as a violation. LINQ treats it as false, so coalesce it first.
+        _model.WhereClauses.Add(negate ? "NOT coalesce(" + translated + ", false)" : translated);
     }
 
     private void ApplySelect(LambdaExpression selector)
@@ -509,32 +512,32 @@ internal sealed class QueryTranslator
                 break;
 
             case TerminalOperator.Any:
-                ApplyAggregate("count", "*", "> 0");
+                ApplyAggregate("count", "*", "> 0", nameof(Queryable.Any));
                 break;
 
             case TerminalOperator.None:
-                ApplyAggregate("count", "*", "= 0");
+                ApplyAggregate("count", "*", "= 0", nameof(Queryable.All));
                 break;
 
             case TerminalOperator.Count:
             case TerminalOperator.LongCount:
-                ApplyAggregate("count", "*", null);
+                ApplyAggregate("count", "*", null, nameof(Queryable.Count));
                 break;
 
             case TerminalOperator.Sum:
-                ApplyAggregate("sum", null, null);
+                ApplyAggregate("sum", null, null, nameof(Queryable.Sum));
                 break;
 
             case TerminalOperator.Min:
-                ApplyAggregate("min", null, null);
+                ApplyAggregate("min", null, null, nameof(Queryable.Min));
                 break;
 
             case TerminalOperator.Max:
-                ApplyAggregate("max", null, null);
+                ApplyAggregate("max", null, null, nameof(Queryable.Max));
                 break;
 
             case TerminalOperator.Average:
-                ApplyAggregate("avg", null, null);
+                ApplyAggregate("avg", null, null, nameof(Queryable.Average));
                 break;
 
             default:
@@ -554,7 +557,7 @@ internal sealed class QueryTranslator
         }
     }
 
-    private void ApplyAggregate(string function, string explicitArgument, string comparison)
+    private void ApplyAggregate(string function, string explicitArgument, string comparison, string linqOperator)
     {
         var useWithClause = _model.Distinct || _model.Skip.HasValue || _model.Limit.HasValue;
 
@@ -574,13 +577,13 @@ internal sealed class QueryTranslator
             if (!_projectionApplied)
             {
                 throw new NotSupportedException(
-                    $"'{function}' needs a value to aggregate. Project one with a selector, for example `.{char.ToUpperInvariant(function[0])}{function.Substring(1)}(p => p.Age)`.");
+                    $"'{linqOperator}' needs a value to aggregate. Project one with a selector, for example `.{linqOperator}(p => p.Age)`.");
             }
 
             if (_model.ReturnItems.Count != 1)
             {
                 throw new NotSupportedException(
-                    $"'{function}' needs a single projected column to aggregate but the projection produced {_model.ReturnItems.Count}.");
+                    $"'{linqOperator}' needs a single projected column to aggregate but the projection produced {_model.ReturnItems.Count}.");
             }
 
             argument = useWithClause

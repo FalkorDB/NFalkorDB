@@ -188,7 +188,8 @@ public class Person
     [Ignore]                  // never read or written
     public string Scratch { get; set; }
 
-    public List<Person> Knows { get; set; }   // navigation property, see below
+    [Relationship("KNOWS")]   // navigation property, see below
+    public List<Person> Knows { get; set; }
 }
 
 [Relationship("KNOWS")]

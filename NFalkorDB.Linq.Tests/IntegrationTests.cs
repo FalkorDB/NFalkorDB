@@ -252,6 +252,11 @@ public class IntegrationTests
         Assert.False(Context.Nodes<Person>().Any(p => p.Age > 100));
         Assert.True(Context.Nodes<Person>().All(p => p.Age > 15));
         Assert.False(Context.Nodes<Person>().All(p => p.Active));
+
+        // Carol has no `score`, and LINQ evaluates `null > 0` as false, so All must be false.
+        // A naive NOT would drop that row under Cypher's three-valued logic and report true.
+        Assert.False(Context.Nodes<Person>().All(p => p.Score > 0));
+        Assert.True(Context.Nodes<Person>().Where(p => p.Score != null).All(p => p.Score > 0));
     }
 
     [Fact]

@@ -105,13 +105,31 @@ internal static class CypherQueryRenderer
     private static List<string> RenderWithOrderTerms(CypherQueryModel model, List<string> withItems)
     {
         var terms = new List<string>(model.OrderByTerms.Count);
-        var carried = new HashSet<string>(
+
+        // Names the WITH declares. An order term that mentions anything else is out of scope.
+        var declared = new HashSet<string>(
             model.ReturnItems.Select((item, index) => WithAlias(model.ReturnItems, index)),
             StringComparer.Ordinal);
 
+        // Source identifiers the WITH carries under their own name, so `n0.age` still resolves.
+        // Tracked separately from the declared aliases, because a projected member could legally be
+        // named `n0` while `n0` itself is not in scope.
+        var passedThrough = new HashSet<string>(StringComparer.Ordinal);
+
+        for (var i = 0; i < model.ReturnItems.Count; i++)
+        {
+            var item = model.ReturnItems[i];
+
+            if (IsIdentifier(item.Expression) &&
+                string.Equals(item.Expression, WithAlias(model.ReturnItems, i), StringComparison.Ordinal))
+            {
+                passedThrough.Add(item.Expression);
+            }
+        }
+
         foreach (var term in model.OrderByTerms)
         {
-            var expression = ResolveOrderExpression(model, withItems, carried, term.Expression);
+            var expression = ResolveOrderExpression(model, withItems, declared, passedThrough, term.Expression);
 
             terms.Add(expression + (term.Descending ? " DESC" : " ASC"));
         }
@@ -122,7 +140,8 @@ internal static class CypherQueryRenderer
     private static string ResolveOrderExpression(
         CypherQueryModel model,
         List<string> withItems,
-        HashSet<string> carried,
+        HashSet<string> declared,
+        HashSet<string> passedThrough,
         string expression)
     {
         for (var i = 0; i < model.ReturnItems.Count; i++)
@@ -133,17 +152,38 @@ internal static class CypherQueryRenderer
             }
         }
 
-        if (carried.Contains(RootIdentifier(expression)))
+        if (passedThrough.Contains(RootIdentifier(expression)))
         {
             return expression;
         }
 
-        var alias = "o" + withItems.Count.ToString(CultureInfo.InvariantCulture);
+        // Carrying the term as an extra column would add it to the DISTINCT key, so rows that the
+        // projection made equal would stop being equal.
+        if (model.Distinct)
+        {
+            throw new NotSupportedException(
+                $"Ordering by '{expression}' cannot be combined with Distinct, because the sort key is not part of the projection and carrying it through would change which rows count as duplicates. Order by a projected column, or drop the ordering.");
+        }
+
+        var alias = NextOrderAlias(declared);
 
         withItems.Add(expression + " AS " + alias);
-        carried.Add(alias);
+        declared.Add(alias);
 
         return alias;
+    }
+
+    private static string NextOrderAlias(HashSet<string> declared)
+    {
+        for (var index = 0; ; index++)
+        {
+            var candidate = "o" + index.ToString(CultureInfo.InvariantCulture);
+
+            if (!declared.Contains(candidate))
+            {
+                return candidate;
+            }
+        }
     }
 
     /// <summary>
