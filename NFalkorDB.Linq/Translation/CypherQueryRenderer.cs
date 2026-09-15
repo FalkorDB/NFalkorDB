@@ -240,7 +240,7 @@ internal static class CypherQueryRenderer
                     foreach (var label in node.Labels)
                     {
                         rendered.Append(':');
-                        rendered.Append(label);
+                        rendered.Append(CypherIdentifier.Escape(label));
                     }
 
                     rendered.Append(')');
@@ -261,7 +261,7 @@ internal static class CypherQueryRenderer
                     if (!string.IsNullOrEmpty(relationship.RelationshipType))
                     {
                         rendered.Append(':');
-                        rendered.Append(relationship.RelationshipType);
+                        rendered.Append(CypherIdentifier.Escape(relationship.RelationshipType));
                     }
 
                     if (relationship.Direction == TraversalDirection.Outgoing)

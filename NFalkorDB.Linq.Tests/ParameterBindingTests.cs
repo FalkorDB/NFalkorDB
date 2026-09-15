@@ -129,4 +129,76 @@ public class ParameterBindingTests
 
         Assert.Contains("cannot be used as a FalkorDB query parameter", exception.Message);
     }
+
+    private class Filter
+    {
+        public int MinimumAge { get; set; }
+
+        public string Name { get; set; }
+
+        public Filter Nested { get; set; }
+
+        public int Throws => throw new InvalidOperationException("boom");
+    }
+
+    [Fact]
+    public void A_captured_local_is_evaluated_locally()
+    {
+        var minimumAge = 21;
+
+        var query = QueryHarnessExtensions.Nodes<Person>().Where(p => p.Age > minimumAge).ToCypherQuery();
+
+        Assert.Equal("MATCH (n0:Person) WHERE n0.age > $p0 RETURN n0", query.Cypher);
+        Assert.Equal(21L, query.Parameters["p0"]);
+    }
+
+    [Fact]
+    public void A_property_on_a_captured_object_is_evaluated_locally()
+    {
+        var filter = new Filter { MinimumAge = 30, Name = "Alice" };
+
+        var query = QueryHarnessExtensions.Nodes<Person>()
+            .Where(p => p.Age > filter.MinimumAge && p.Name == filter.Name)
+            .ToCypherQuery();
+
+        Assert.Equal("MATCH (n0:Person) WHERE n0.age > $p0 AND n0.name = $p1 RETURN n0", query.Cypher);
+        Assert.Equal(30L, query.Parameters["p0"]);
+        Assert.Equal("Alice", query.Parameters["p1"]);
+    }
+
+    [Fact]
+    public void A_nested_property_chain_is_evaluated_locally()
+    {
+        var filter = new Filter { Nested = new Filter { MinimumAge = 40 } };
+
+        var query = QueryHarnessExtensions.Nodes<Person>()
+            .Where(p => p.Age > filter.Nested.MinimumAge)
+            .ToCypherQuery();
+
+        Assert.Equal(40L, query.Parameters["p0"]);
+    }
+
+    [Fact]
+    public void A_method_call_on_a_captured_value_falls_back_to_the_compiled_path()
+    {
+        var filter = new Filter { Name = "  alice  " };
+
+        var query = QueryHarnessExtensions.Nodes<Person>()
+            .Where(p => p.Name == filter.Name.Trim().ToUpperInvariant())
+            .ToCypherQuery();
+
+        Assert.Equal("MATCH (n0:Person) WHERE n0.name = $p0 RETURN n0", query.Cypher);
+        Assert.Equal("ALICE", query.Parameters["p0"]);
+    }
+
+    [Fact]
+    public void An_exception_from_a_captured_property_surfaces_unwrapped()
+    {
+        var filter = new Filter();
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => QueryHarnessExtensions.Nodes<Person>().Where(p => p.Age > filter.Throws).ToCypherQuery());
+
+        Assert.Equal("boom", exception.Message);
+    }
 }

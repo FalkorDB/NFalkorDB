@@ -353,6 +353,14 @@ internal sealed class QueryTranslator
                 "Two consecutive Select calls cannot be translated to Cypher. Combine them into a single projection.");
         }
 
+        // RETURN DISTINCT would deduplicate the projected values rather than the matched rows, so
+        // the result would differ from the LINQ semantics.
+        if (_model.Distinct)
+        {
+            throw new NotSupportedException(
+                "Select cannot be applied after Distinct, because Cypher would deduplicate the projected values instead of the matched rows. Project first, then call Distinct.");
+        }
+
         var bindings = BindCurrent(selector.Parameters[0]);
 
         BuildProjection(selector.Body, bindings);

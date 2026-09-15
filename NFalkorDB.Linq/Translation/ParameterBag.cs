@@ -95,7 +95,12 @@ internal sealed class ParameterBag
 
             foreach (var entry in map)
             {
-                normalizedMap[entry.Key] = Normalize(entry.Value);
+                if (entry.Key == null)
+                {
+                    throw new NotSupportedException("A map used as a query parameter cannot have a null key.");
+                }
+
+                normalizedMap[CypherIdentifier.Escape(entry.Key)] = Normalize(entry.Value);
             }
 
             return normalizedMap;

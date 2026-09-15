@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Reflection;
 
 namespace NFalkorDB.Linq.Translation;
 
@@ -148,6 +149,11 @@ internal static class PartialEvaluator
                 return node;
             }
 
+            if (TryEvaluateDirectly(node, out var evaluated))
+            {
+                return Expression.Constant(evaluated, node.Type);
+            }
+
             var lambda = Expression.Lambda<Func<object>>(Expression.Convert(node, typeof(object)));
 
             object value;
@@ -163,5 +169,82 @@ internal static class PartialEvaluator
 
             return Expression.Constant(value, node.Type);
         }
+
+        /// <summary>
+        /// Reads the shapes that make up virtually every captured value — a closure field, a
+        /// property on a captured object, and the conversions the compiler wraps them in — without
+        /// compiling a delegate, because compiling emits a dynamic method per subtree per
+        /// translation.
+        /// </summary>
+        private static bool TryEvaluateDirectly(Expression node, out object value)
+        {
+            value = null;
+
+            switch (node)
+            {
+                case ConstantExpression constant:
+                    value = constant.Value;
+                    return true;
+
+                case MemberExpression member:
+                    object instance = null;
+
+                    if (member.Expression != null && !TryEvaluateDirectly(member.Expression, out instance))
+                    {
+                        return false;
+                    }
+
+                    switch (member.Member)
+                    {
+                        case FieldInfo field:
+                            value = field.GetValue(instance);
+                            return true;
+
+                        case PropertyInfo property when property.GetIndexParameters().Length == 0 && property.CanRead:
+                            try
+                            {
+                                value = property.GetValue(instance, null);
+                            }
+                            catch (System.Reflection.TargetInvocationException ex) when (ex.InnerException != null)
+                            {
+                                throw ex.InnerException;
+                            }
+
+                            return true;
+
+                        default:
+                            return false;
+                    }
+
+                case UnaryExpression unary
+                    when unary.NodeType == ExpressionType.Convert || unary.NodeType == ExpressionType.ConvertChecked:
+
+                    if (unary.Method != null || !TryEvaluateDirectly(unary.Operand, out var operand))
+                    {
+                        return false;
+                    }
+
+                    // Only reference conversions and boxing are safe to reproduce here; anything
+                    // numeric or user-defined falls through to the compiled path.
+                    if (operand == null)
+                    {
+                        return !unary.Type.IsValueType || IsNullable(unary.Type);
+                    }
+
+                    if (!unary.Type.IsInstanceOfType(operand))
+                    {
+                        return false;
+                    }
+
+                    value = operand;
+                    return true;
+
+                default:
+                    return false;
+            }
+        }
+
+        private static bool IsNullable(Type type) =>
+            type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Nullable<>);
     }
 }

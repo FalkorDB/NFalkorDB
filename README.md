@@ -291,8 +291,14 @@ Values are **never** concatenated into the Cypher text, so hostile input such as
 ### Ordering rule
 
 `Where` and `OrderBy` must come before `Select`, and before `Skip`/`Take`/`Distinct`, so the sort and
-filter keys can be translated against the matched entity. Reordering them throws a
-`NotSupportedException` explaining what to do instead.
+filter keys can be translated against the matched entity. `Distinct` must come *after* `Select`,
+because `RETURN DISTINCT` would otherwise remove duplicates from the projected values rather than
+from the matched rows. Reordering them throws a `NotSupportedException` explaining what to do instead.
+
+### Names that are not bare identifiers
+
+Labels, relationship types and property keys are escaped as Cypher identifiers, so
+`[Property("first-name")]` renders as ``n0.`first-name` `` rather than being parsed as a subtraction.
 
 ## License
 

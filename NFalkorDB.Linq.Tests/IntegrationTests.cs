@@ -401,6 +401,34 @@ public class IntegrationTests
     }
 
     [Fact]
+    public void Mapped_names_that_are_not_bare_identifiers_work_end_to_end()
+    {
+        _fixture.Graph.Query("CREATE (:`Odd Label`:`Second Label` {`first-name`:'Zoe', plain:'p'})");
+
+        try
+        {
+            var found = Context.Nodes<AwkwardlyNamedNode>().Single(x => x.FirstName == "Zoe");
+
+            Assert.Equal("Zoe", found.FirstName);
+            Assert.Equal("p", found.Plain);
+        }
+        finally
+        {
+            _fixture.Graph.Query("MATCH (n:`Odd Label`) DETACH DELETE n");
+        }
+    }
+
+    [Node("Odd Label", "Second Label")]
+    private class AwkwardlyNamedNode
+    {
+        [Property("first-name")]
+        public string FirstName { get; set; }
+
+        [Property("plain")]
+        public string Plain { get; set; }
+    }
+
+    [Fact]
     public void A_hostile_value_is_stored_and_read_back_verbatim()
     {
         var hostile = "\") RETURN 1 //";

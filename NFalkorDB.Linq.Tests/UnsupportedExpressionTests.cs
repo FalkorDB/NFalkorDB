@@ -181,4 +181,59 @@ public class UnsupportedExpressionTests
 
         Assert.Contains("GraphContext", message);
     }
+
+    [Fact]
+    public void A_bitwise_and_is_rejected_rather_than_translated_as_a_boolean_and()
+    {
+        var message = Throws(() => QueryHarnessExtensions.Nodes<Person>()
+            .Where(p => (p.Age & 1) == 0)
+            .ToCypherQuery());
+
+        Assert.Contains("bitwise", message);
+        Assert.Contains("And", message);
+    }
+
+    [Fact]
+    public void A_bitwise_or_is_rejected_rather_than_translated_as_a_boolean_or()
+    {
+        var message = Throws(() => QueryHarnessExtensions.Nodes<Person>()
+            .Where(p => (p.Age | 1) == 1)
+            .ToCypherQuery());
+
+        Assert.Contains("bitwise", message);
+        Assert.Contains("Or", message);
+    }
+
+    [Fact]
+    public void A_non_short_circuiting_boolean_and_is_still_translated()
+    {
+        var cypher = QueryHarnessExtensions.Nodes<Person>()
+            .Where(p => p.Active & p.Age > 3)
+            .Cypher();
+
+        Assert.Equal("MATCH (n0:Person) WHERE n0.active AND n0.age > $p0 RETURN n0", cypher);
+    }
+
+    [Fact]
+    public void Select_after_Distinct_is_rejected_because_it_would_deduplicate_the_projection()
+    {
+        var message = Throws(() => QueryHarnessExtensions.Nodes<Person>()
+            .Distinct()
+            .Select(p => p.Name)
+            .ToCypherQuery());
+
+        Assert.Contains("Distinct", message);
+        Assert.Contains("Project first", message);
+    }
+
+    [Fact]
+    public void Distinct_after_Select_is_still_supported()
+    {
+        var cypher = QueryHarnessExtensions.Nodes<Person>()
+            .Select(p => p.Name)
+            .Distinct()
+            .Cypher();
+
+        Assert.Equal("MATCH (n0:Person) RETURN DISTINCT n0.name", cypher);
+    }
 }

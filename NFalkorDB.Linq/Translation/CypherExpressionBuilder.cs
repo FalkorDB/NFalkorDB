@@ -173,7 +173,7 @@ internal sealed class CypherExpressionBuilder
 
             if (metadata.TryGetProperty(member.Member.Name, out var property))
             {
-                return Atom(binding.Alias + "." + property.GraphName);
+                return Atom(binding.Alias + "." + CypherIdentifier.Escape(property.GraphName));
             }
 
             if (metadata.TryGetNavigation(member.Member.Name, out _))
@@ -240,13 +240,15 @@ internal sealed class CypherExpressionBuilder
                 return Comparison(left, right, "<=");
 
             case ExpressionType.AndAlso:
-            case ExpressionType.And:
                 return Infix(left, right, "AND", PrecedenceAnd);
             case ExpressionType.OrElse:
-            case ExpressionType.Or:
                 return Infix(left, right, "OR", PrecedenceOr);
+            case ExpressionType.And:
+                return BooleanOnly(binary, left, right, "AND", PrecedenceAnd);
+            case ExpressionType.Or:
+                return BooleanOnly(binary, left, right, "OR", PrecedenceOr);
             case ExpressionType.ExclusiveOr:
-                return Infix(left, right, "XOR", PrecedenceXor);
+                return BooleanOnly(binary, left, right, "XOR", PrecedenceXor);
 
             case ExpressionType.Add:
             case ExpressionType.AddChecked:
@@ -452,6 +454,25 @@ internal sealed class CypherExpressionBuilder
 
         return new CypherFragment(leftText + " " + @operator + " " + rightText, precedence);
     }
+
+    /// <summary>
+    /// <see cref="ExpressionType.And"/>, <see cref="ExpressionType.Or"/> and
+    /// <see cref="ExpressionType.ExclusiveOr"/> are also the bitwise operators, which Cypher has no
+    /// equivalent for. Only the boolean form is translatable.
+    /// </summary>
+    private CypherFragment BooleanOnly(BinaryExpression node, Expression left, Expression right, string @operator, int precedence)
+    {
+        if (!IsBoolean(left.Type) || !IsBoolean(right.Type))
+        {
+            throw new NotSupportedException(
+                $"The bitwise operator '{node.NodeType}' in '{node}' cannot be translated to Cypher. Use the boolean operators '&&', '||' and '!' instead.");
+        }
+
+        return Infix(left, right, @operator, precedence);
+    }
+
+    private static bool IsBoolean(Type type) =>
+        type == typeof(bool) || type == typeof(bool?);
 
     private static string Render(CypherFragment fragment, int minimumPrecedence) =>
         fragment.Precedence < minimumPrecedence ? "(" + fragment.Text + ")" : fragment.Text;
