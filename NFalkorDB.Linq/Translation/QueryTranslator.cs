@@ -721,9 +721,19 @@ internal sealed class QueryTranslator
             return null;
         }
 
-        var alias = ReservedAliases.Contains(memberName) || usedAliases.Contains(memberName)
-            ? "c" + index.ToString(CultureInfo.InvariantCulture)
-            : memberName;
+        var alias = memberName;
+
+        if (ReservedAliases.Contains(memberName) || usedAliases.Contains(memberName))
+        {
+            // A projected member can already be named like a generated alias, so advance until the
+            // name is free rather than trusting the column index to be unique.
+            do
+            {
+                alias = "c" + index.ToString(CultureInfo.InvariantCulture);
+                index++;
+            }
+            while (usedAliases.Contains(alias));
+        }
 
         usedAliases.Add(alias);
 

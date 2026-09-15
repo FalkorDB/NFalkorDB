@@ -60,6 +60,8 @@ internal static class CypherQueryRenderer
         if (model.Distinct)
         {
             cypher.Append("DISTINCT ");
+
+            GuardDistinctOrdering(model);
         }
 
         cypher.Append(string.Join(", ", model.ReturnItems.Select(RenderReturnItem).ToArray()));
@@ -67,6 +69,40 @@ internal static class CypherQueryRenderer
         AppendOrderSkipLimit(cypher, model);
 
         return cypher.ToString();
+    }
+
+    /// <summary>
+    /// Rejects ordering by a column that a <c>DISTINCT</c> projection does not return.
+    /// </summary>
+    /// <remarks>
+    /// <c>RETURN DISTINCT n0.name ORDER BY n0.age</c> asks Cypher to sort deduplicated rows by a
+    /// value that deduplication discarded, so the order of equal names is arbitrary rather than
+    /// LINQ's first occurrence. The aggregate path rejects the same shape in
+    /// <see cref="ResolveOrderExpression"/>.
+    /// </remarks>
+    private static void GuardDistinctOrdering(CypherQueryModel model)
+    {
+        foreach (var term in model.OrderByTerms)
+        {
+            var projected = false;
+
+            foreach (var item in model.ReturnItems)
+            {
+                if (string.Equals(item.Expression, term.Expression, StringComparison.Ordinal) ||
+                    string.Equals(item.Alias, term.Expression, StringComparison.Ordinal))
+                {
+                    projected = true;
+
+                    break;
+                }
+            }
+
+            if (!projected)
+            {
+                throw new NotSupportedException(
+                    $"Ordering by '{term.Expression}' cannot be combined with Distinct, because the sort key is not part of the projection and the order of duplicate rows would be arbitrary. Order by a projected column, or drop the ordering.");
+            }
+        }
     }
 
     private static void AppendOrderSkipLimit(StringBuilder cypher, CypherQueryModel model)

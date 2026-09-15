@@ -166,14 +166,29 @@ public static class GraphQueryableAsyncExtensions
     /// <returns><c>true</c> when no row violates the predicate.</returns>
     public static Task<bool> AllAsync<T>(this IQueryable<T> source, Expression<Func<T, bool>> predicate, CancellationToken cancellationToken = default)
     {
+        if (source == null)
+        {
+            throw new ArgumentNullException(nameof(source));
+        }
+
         if (predicate == null)
         {
             throw new ArgumentNullException(nameof(predicate));
         }
 
-        var negated = Expression.Lambda<Func<T, bool>>(Expression.Not(predicate.Body), predicate.Parameters);
+        // Build the same Queryable.All node the synchronous path translates, so that the negation
+        // goes through the translator's coalescing rule. Negating the predicate here instead would
+        // emit a bare NOT, and Cypher drops rows where the predicate is null.
+        var call = Expression.Call(
+            typeof(Queryable),
+            nameof(Queryable.All),
+            new[] { typeof(T) },
+            source.Expression,
+            Expression.Quote(predicate));
 
-        return Execute<T, bool>(Filter(source, negated), TerminalOperator.None, typeof(bool), cancellationToken);
+        return GraphQueryableExtensions
+            .RequireProvider(source)
+            .ExecuteAsync<bool>(call, TerminalOperator.None, typeof(bool), cancellationToken);
     }
 
     /// <summary>Sums the projected column.</summary>

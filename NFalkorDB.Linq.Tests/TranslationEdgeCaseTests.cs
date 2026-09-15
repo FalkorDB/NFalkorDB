@@ -148,4 +148,66 @@ public class TranslationEdgeCaseTests
         Assert.Throws<ArgumentException>(() => new NodeAttribute("Person", "  "));
         Assert.Throws<ArgumentException>(() => new NodeAttribute("Person", string.Empty));
     }
+
+    [Fact]
+    public void Successive_Where_calls_preserve_the_grouping_of_an_Or()
+    {
+        // Joining the clauses with a bare AND would render `a OR b AND c`, which Cypher groups as
+        // `a OR (b AND c)` -- a different predicate than the one that was written.
+        var cypher = QueryHarnessExtensions.Nodes<Person>()
+            .Where(p => p.Age > 30 || p.Active)
+            .Where(p => p.Name == "Alice")
+            .Cypher();
+
+        Assert.Equal("MATCH (n0:Person) WHERE (n0.age > $p0 OR n0.active) AND n0.name = $p1 RETURN n0", cypher);
+    }
+
+    [Fact]
+    public void A_single_Where_does_not_gain_redundant_grouping()
+    {
+        var cypher = QueryHarnessExtensions.Nodes<Person>()
+            .Where(p => p.Age > 30 && p.Active)
+            .Cypher();
+
+        Assert.Equal("MATCH (n0:Person) WHERE n0.age > $p0 AND n0.active RETURN n0", cypher);
+    }
+
+    [Fact]
+    public void A_generated_column_alias_skips_names_the_projection_already_uses()
+    {
+        // `match` is reserved, so it needs a generated alias -- which must not collide with the
+        // member that is already called c1.
+        var cypher = QueryHarnessExtensions.Nodes<Person>()
+            .Select(p => new { c1 = p.Name, match = p.Age })
+            .Take(3)
+            .Cypher();
+
+        Assert.Equal("MATCH (n0:Person) RETURN n0.name AS c1, n0.age AS c2 LIMIT 3", cypher);
+    }
+
+    [Fact]
+    public void Ordering_by_an_unprojected_column_is_rejected_on_the_return_path_too()
+    {
+        // The aggregate path already rejected this; the plain RETURN DISTINCT path did not.
+        var exception = Assert.Throws<NotSupportedException>(() => QueryHarnessExtensions.Nodes<Person>()
+            .OrderBy(p => p.Age)
+            .Select(p => p.Name)
+            .Distinct()
+            .Cypher());
+
+        Assert.Contains("Distinct", exception.Message);
+        Assert.Contains("n0.age", exception.Message);
+    }
+
+    [Fact]
+    public void Ordering_by_a_projected_column_still_works_with_Distinct()
+    {
+        var cypher = QueryHarnessExtensions.Nodes<Person>()
+            .OrderBy(p => p.Name)
+            .Select(p => p.Name)
+            .Distinct()
+            .Cypher();
+
+        Assert.Equal("MATCH (n0:Person) RETURN DISTINCT n0.name ORDER BY n0.name ASC", cypher);
+    }
 }

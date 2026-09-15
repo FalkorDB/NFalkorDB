@@ -99,7 +99,12 @@ internal sealed class CypherExpressionBuilder
     /// Translates a boolean expression for use in a WHERE clause. A bare boolean property such as
     /// <c>p.IsActive</c> is a valid Cypher predicate on its own.
     /// </summary>
-    internal string TranslatePredicate(Expression expression) => Visit(expression).Text;
+    /// <remarks>
+    /// The result is rendered at <c>AND</c> precedence because successive <c>Where</c> calls are
+    /// joined with <c>AND</c>. Without this, <c>.Where(a || b).Where(c)</c> would render
+    /// <c>a OR b AND c</c>, which Cypher groups as <c>a OR (b AND c)</c>.
+    /// </remarks>
+    internal string TranslatePredicate(Expression expression) => Render(Visit(expression), PrecedenceAnd);
 
     private CypherFragment Visit(Expression expression)
     {

@@ -81,9 +81,16 @@ public class AsyncTranslationTests
             "MATCH (n0:Person) WHERE n0.active RETURN count(*) > 0",
             await CypherOf(h => h.Nodes<Person>().AnyAsync(p => p.Active)));
 
-        Assert.Equal(
-            "MATCH (n0:Person) WHERE NOT n0.active RETURN count(*) = 0",
-            await CypherOf(h => h.Nodes<Person>().AllAsync(p => p.Active)));
+        // Must match the synchronous All exactly: a bare NOT would drop rows whose property is
+        // missing, so a violating row could go uncounted.
+        var syncHarness = new QueryHarness();
+
+        syncHarness.Nodes<Person>().All(p => p.Active);
+
+        var asyncAll = await CypherOf(h => h.Nodes<Person>().AllAsync(p => p.Active));
+
+        Assert.Equal("MATCH (n0:Person) WHERE NOT coalesce(n0.active, false) RETURN count(*) = 0", asyncAll);
+        Assert.Equal(syncHarness.CapturedCypher, asyncAll);
     }
 
     [Fact]
