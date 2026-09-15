@@ -74,7 +74,15 @@ internal static class PartialEvaluator
                 return false;
             }
 
-            // A queryable root is the query itself, not a value to fold away.
+            // A queryable is the query itself, not a value to fold away. Folding one would compile
+            // and execute it during translation -- a second round trip, and exactly the silent
+            // client-side evaluation the provider promises never to do. Testing the node type also
+            // catches a captured queryable reached through a member access, not just a query root.
+            if (typeof(IQueryable).IsAssignableFrom(node.Type))
+            {
+                return false;
+            }
+
             if (node is ConstantExpression constant && constant.Value is IQueryable)
             {
                 return false;

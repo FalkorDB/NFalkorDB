@@ -509,8 +509,42 @@ internal sealed class QueryTranslator
                 "Distinct cannot be applied after Skip or Take, because Cypher would de-duplicate a different row set. Call Distinct before paging.");
         }
 
+        GuardDistinctEquality();
+
         _model.Distinct = true;
     }
+
+    /// <summary>
+    /// Rejects <c>Distinct</c> over a fabricated object whose CLR equality is reference equality.
+    /// </summary>
+    /// <remarks>
+    /// <c>RETURN DISTINCT</c> compares the projected values, while LINQ compares with
+    /// <see cref="EqualityComparer{T}.Default"/>. For a member-init projection such as
+    /// <c>Select(p =&gt; new Company { ... })</c> every materialized instance is a separate object,
+    /// so LINQ would keep every row while Cypher silently collapses rows that share property values.
+    /// Anonymous types and records override equality structurally and so do agree with Cypher, and a
+    /// whole-node projection de-duplicates by graph identity, which is well defined.
+    /// </remarks>
+    private void GuardDistinctEquality()
+    {
+        if (!(_projection is ObjectShape shape))
+        {
+            return;
+        }
+
+        var type = shape.ResultType;
+
+        if (type.IsValueType || type == typeof(string) || OverridesEquals(type))
+        {
+            return;
+        }
+
+        throw new NotSupportedException(
+            $"Distinct cannot be applied to the projection '{type.Name}', because '{type.Name}' does not override Equals, so LINQ compares the projected objects by reference and would keep every row while Cypher de-duplicates them by value. Project an anonymous type, give '{type.Name}' value equality, or project the node itself to de-duplicate by graph identity.");
+    }
+
+    private static bool OverridesEquals(Type type) =>
+        type.GetMethod(nameof(object.Equals), new[] { typeof(object) })?.DeclaringType != typeof(object);
 
     private void ApplyOptionalPredicate(MethodCallExpression call)
     {

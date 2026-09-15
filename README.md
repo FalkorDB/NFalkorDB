@@ -296,6 +296,21 @@ filter keys can be translated against the matched entity. `Distinct` must come *
 because `RETURN DISTINCT` would otherwise remove duplicates from the projected values rather than
 from the matched rows. Reordering them throws a `NotSupportedException` explaining what to do instead.
 
+### Equality semantics
+
+Cypher compares values, while LINQ compares with `EqualityComparer<T>.Default`. Where the two cannot
+agree the provider refuses to translate rather than quietly returning a different row set:
+
+- **`Contains` over a collection built with a custom comparer.** `IN` always uses default equality, so
+  a `HashSet<string>(StringComparer.OrdinalIgnoreCase)` would silently become a case-sensitive test.
+- **`Distinct` over a projection to a type without value equality.** `Select(p => new Company { ... })`
+  produces objects that LINQ compares by reference — every row is distinct — while `RETURN DISTINCT`
+  collapses rows with equal properties. Project an anonymous type or a record, give the type value
+  equality, or project the node itself to remove duplicates by graph identity.
+
+A nested query such as `Where(p => p.Age > other.Count())` is rejected for a related reason: evaluating
+it would mean running a second query against the server mid-translation. Materialize it first.
+
 ### Names that are not bare identifiers
 
 Labels, relationship types and property keys are escaped as Cypher identifiers, so
@@ -341,12 +356,15 @@ The provider closes that gap rather than leaving it to the caller:
 | C# | Cypher |
 | --- | --- |
 | `p.Score != 0` | `coalesce(n0.score <> $p0, true)` |
+| `p.Name == p.Nickname` | `coalesce(n0.name = n0.nickname, n0.name IS NULL AND n0.nickname IS NULL)` |
 | `!(p.Score > 0)` | `NOT coalesce(n0.score > $p0, false)` |
 | `All(p => p.Active)` | `NOT coalesce(n0.active, false)` counted as a violation |
 
-Equality needs no such treatment, because a `null` operand and a `false` result are both rejected by
-`WHERE` alike. The fallback is only emitted when an operand can actually be null, so
-`Where(p => p.Age != 30)` on a non-nullable `int` still renders the plain `n0.age <> $p0`.
+Equality only needs the fallback when **both** sides can be null, which is the one case C# and Cypher
+disagree on: C# says `null == null` is `true`, Cypher says `null`. When just one side can be null,
+a Cypher `null` and a C# `false` are both rejected by `WHERE` alike, so `Where(p => p.Name == "Alice")`
+stays the plain `n0.name = $p0` and remains indexable. The `<>` fallback is likewise only emitted when
+an operand can actually be null, so `Where(p => p.Age != 30)` on a non-nullable `int` renders bare.
 
 ### Model optional properties as nullable
 

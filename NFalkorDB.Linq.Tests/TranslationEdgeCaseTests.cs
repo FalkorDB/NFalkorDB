@@ -232,6 +232,72 @@ public class TranslationEdgeCaseTests
     }
 
     [Fact]
+    public void Equality_is_null_safe_only_when_both_sides_can_be_null()
+    {
+        // C# says null == null is true, but Cypher's = yields null there and WHERE drops the row.
+        // Two nullable property reads are the only shape where that difference is observable.
+        Assert.Equal(
+            "MATCH (n0:Person) WHERE coalesce(n0.name = n0.nickname, n0.name IS NULL AND n0.nickname IS NULL) RETURN n0",
+            QueryHarnessExtensions.Nodes<Person>().Where(p => p.Name == p.Nickname).Cypher());
+
+        // One nullable side against a non-null constant needs nothing: Cypher's null and C#'s false
+        // are both rejected by WHERE. Leaving it bare is what keeps the predicate indexable.
+        Assert.Equal(
+            "MATCH (n0:Person) WHERE n0.name = $p0 RETURN n0",
+            QueryHarnessExtensions.Nodes<Person>().Where(p => p.Name == "Alice").Cypher());
+
+        Assert.Equal(
+            "MATCH (n0:Person) WHERE n0.score = $p0 RETURN n0",
+            QueryHarnessExtensions.Nodes<Person>().Where(p => p.Score == 10).Cypher());
+
+        Assert.Equal(
+            "MATCH (n0:Person) WHERE n0.age = $p0 RETURN n0",
+            QueryHarnessExtensions.Nodes<Person>().Where(p => p.Age == 30).Cypher());
+
+        // A null literal still takes the dedicated IS NULL form rather than the fallback.
+        Assert.Equal(
+            "MATCH (n0:Person) WHERE n0.name IS NULL RETURN n0",
+            QueryHarnessExtensions.Nodes<Person>().Where(p => p.Name == null).Cypher());
+    }
+
+    [Fact]
+    public void Distinct_is_allowed_for_projections_that_carry_value_equality()
+    {
+        // The reference-projection guard must not catch anonymous types (which the compiler gives
+        // structural equality), scalars, or a whole node (de-duplicated by graph identity).
+        Assert.Equal(
+            "MATCH (n0:Person) RETURN DISTINCT n0.name AS Name",
+            QueryHarnessExtensions.Nodes<Person>().Select(p => new { p.Name }).Distinct().Cypher());
+
+        Assert.Equal(
+            "MATCH (n0:Person) RETURN DISTINCT n0.name",
+            QueryHarnessExtensions.Nodes<Person>().Select(p => p.Name).Distinct().Cypher());
+
+        Assert.Equal(
+            "MATCH (n0:Person) RETURN DISTINCT n0",
+            QueryHarnessExtensions.Nodes<Person>().Distinct().Cypher());
+    }
+
+    [Fact]
+    public void A_collection_without_a_custom_comparer_still_becomes_in()
+    {
+        // The comparer guard must only reject collections that actually carry a non-default one.
+        var set = new HashSet<string> { "Alice" };
+        var list = new List<string> { "Alice" };
+        var array = new[] { "Alice" };
+
+        foreach (var cypher in new[]
+                 {
+                     QueryHarnessExtensions.Nodes<Person>().Where(p => set.Contains(p.Name)).Cypher(),
+                     QueryHarnessExtensions.Nodes<Person>().Where(p => list.Contains(p.Name)).Cypher(),
+                     QueryHarnessExtensions.Nodes<Person>().Where(p => array.Contains(p.Name)).Cypher(),
+                 })
+        {
+            Assert.Equal("MATCH (n0:Person) WHERE n0.name IN $p0 RETURN n0", cypher);
+        }
+    }
+
+    [Fact]
     public void Inequality_is_null_safe_only_where_a_side_can_be_null()
     {
         // int? Score and string Name can both be absent, so the comparison needs the fallback that

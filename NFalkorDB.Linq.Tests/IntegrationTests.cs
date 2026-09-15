@@ -521,6 +521,33 @@ public class IntegrationTests
     }
 
     [Fact]
+    public void Equality_between_two_missing_properties_matches_LINQ()
+    {
+        // Carol has no score, so both sides read as null. C# says null == null is true, but a bare
+        // `n0.score = n0.score` evaluates to null in Cypher and would drop her.
+        var names = Context.Nodes<Person>()
+            .Where(p => p.Score == p.Score)
+            .Select(p => p.Name)
+            .ToList();
+
+        Assert.Contains("Carol", names);
+        Assert.Equal(4, names.Count);
+    }
+
+    [Fact]
+    public void Equality_between_a_present_and_a_missing_property_matches_LINQ()
+    {
+        // Nobody has a nickname, so this compares a present name against null on every row. C# says
+        // that is false throughout, and the null-safe fallback must not turn it into a match.
+        var names = Context.Nodes<Person>()
+            .Where(p => p.Name == p.Nickname)
+            .Select(p => p.Name)
+            .ToList();
+
+        Assert.Empty(names);
+    }
+
+    [Fact]
     public void Inequality_against_a_missing_property_matches_LINQ()
     {
         // Carol has no score. C# reads that as null, and `null != 0` is true, so she belongs in the

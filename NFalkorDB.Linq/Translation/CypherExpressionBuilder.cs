@@ -331,6 +331,18 @@ internal sealed class CypherExpressionBuilder
     {
         var declaringType = call.Method.DeclaringType;
 
+        // The partial evaluator refuses to fold a subtree that carries an IQueryable, so a nested
+        // query arrives here intact instead of having been compiled and executed behind the
+        // caller's back. Cypher has no subquery form to translate it into, so it is reported up
+        // front -- before Contains and friends can claim the call and render something misleading.
+        if (typeof(IQueryable).IsAssignableFrom(declaringType) ||
+            (call.Object != null && typeof(IQueryable).IsAssignableFrom(call.Object.Type)) ||
+            call.Arguments.Any(argument => typeof(IQueryable).IsAssignableFrom(argument.Type)))
+        {
+            throw new NotSupportedException(
+                $"The nested query '{call}' cannot be translated to Cypher. Running it would mean executing a second query while translating this one, which the provider does not do implicitly. Evaluate it first and capture the result, for example with ToList() or CountAsync().");
+        }
+
         if (declaringType == typeof(string))
         {
             var fragment = VisitStringCall(call);
@@ -365,6 +377,10 @@ internal sealed class CypherExpressionBuilder
             // A collection Contains becomes IN; string.Contains was handled above as CONTAINS.
             if (call.Object != null && call.Arguments.Count == 1 && call.Object.Type != typeof(string))
             {
+                // A set built around a custom comparer decides membership by that comparer, but IN
+                // always uses default equality, so translating it would change the result.
+                RejectNonDefaultComparer(call.Object, call.Method.Name);
+
                 return new CypherFragment(
                     Render(Visit(call.Arguments[0]), PrecedenceComparison) + " IN " + Render(Visit(call.Object), PrecedenceComparison),
                     PrecedenceComparison);
@@ -384,6 +400,8 @@ internal sealed class CypherExpressionBuilder
                 }
 
                 var collection = StripSpanConversion(call.Arguments[0]);
+
+                RejectNonDefaultComparer(collection, call.Method.Name);
 
                 return new CypherFragment(
                     Render(Visit(call.Arguments[1]), PrecedenceComparison) + " IN " + Render(Visit(collection), PrecedenceComparison),
@@ -522,6 +540,21 @@ internal sealed class CypherExpressionBuilder
             }
         }
 
+        if (@operator == "=")
+        {
+            // Cypher's = yields null when either side is null, so the row is dropped. C# keeps it
+            // when both sides are null, because null == null is true. Only the both-nullable case
+            // differs: when exactly one side can be null, Cypher's null and C#'s false are both
+            // rejected by WHERE, so the plain comparison is left alone and stays indexable.
+            if (CanBeNull(left) && CanBeNull(right))
+            {
+                return Atom(
+                    "coalesce(" + text + ", " +
+                    Render(leftFragment, PrecedenceComparison) + " IS NULL AND " +
+                    Render(rightFragment, PrecedenceComparison) + " IS NULL)");
+            }
+        }
+
         return new CypherFragment(text, PrecedenceComparison);
     }
 
@@ -539,6 +572,64 @@ internal sealed class CypherExpressionBuilder
         }
 
         return !expression.Type.IsValueType || Nullable.GetUnderlyingType(expression.Type) != null;
+    }
+
+    /// <summary>
+    /// Rejects a <c>Contains</c> receiver that decides membership with a non-default comparer.
+    /// </summary>
+    /// <remarks>
+    /// Cypher's <c>IN</c> always uses default equality, so a set built around, say,
+    /// <see cref="StringComparer.OrdinalIgnoreCase"/> would silently become a case-sensitive test.
+    /// The collection has already been folded to a constant by the partial evaluator, so the
+    /// comparer it actually carries can be inspected here.
+    /// </remarks>
+    private static void RejectNonDefaultComparer(Expression source, string methodName)
+    {
+        if (!(Unwrap(source) is ConstantExpression constant) || constant.Value == null)
+        {
+            return;
+        }
+
+        foreach (var propertyName in new[] { "Comparer", "KeyComparer" })
+        {
+            var property = constant.Value.GetType().GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance);
+
+            if (property == null || property.GetIndexParameters().Length != 0 || !IsComparer(property.PropertyType))
+            {
+                continue;
+            }
+
+            if (IsDefaultComparer(property.GetValue(constant.Value), property.PropertyType))
+            {
+                continue;
+            }
+
+            throw new NotSupportedException(
+                $"'{methodName}' on a '{constant.Value.GetType().Name}' that was built with a custom comparer cannot be translated to Cypher, because the IN operator always uses default equality and the comparer would be silently discarded. Materialize the collection with default equality first, or filter in memory.");
+        }
+    }
+
+    private static bool IsComparer(Type type) =>
+        type.IsGenericType &&
+        (type.GetGenericTypeDefinition() == typeof(IEqualityComparer<>) ||
+         type.GetGenericTypeDefinition() == typeof(IComparer<>));
+
+    private static bool IsDefaultComparer(object comparer, Type comparerType)
+    {
+        if (comparer == null)
+        {
+            return true;
+        }
+
+        var element = comparerType.GetGenericArguments()[0];
+
+        var holder = comparerType.GetGenericTypeDefinition() == typeof(IEqualityComparer<>)
+            ? typeof(EqualityComparer<>).MakeGenericType(element)
+            : typeof(Comparer<>).MakeGenericType(element);
+
+        var @default = holder.GetProperty("Default", BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
+
+        return ReferenceEquals(comparer, @default);
     }
 
     private CypherFragment Infix(Expression left, Expression right, string @operator, int precedence)

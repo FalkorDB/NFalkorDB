@@ -400,6 +400,57 @@ public class UnsupportedExpressionTests
     }
 
     [Fact]
+    public void A_contains_source_with_a_custom_comparer_is_rejected()
+    {
+        // The set decides membership with its comparer, but IN always uses default equality, so
+        // translating it would quietly turn a case-insensitive test into a case-sensitive one.
+        var caseInsensitive = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Alice" };
+
+        var message = Throws(() => QueryHarnessExtensions.Nodes<Person>()
+            .Where(p => caseInsensitive.Contains(p.Name))
+            .ToCypherQuery());
+
+        Assert.Contains("custom comparer", message);
+        Assert.Contains("default equality", message);
+
+        var sorted = new SortedSet<string>(StringComparer.OrdinalIgnoreCase) { "Alice" };
+
+        Assert.Contains("custom comparer", Throws(() => QueryHarnessExtensions.Nodes<Person>()
+            .Where(p => sorted.Contains(p.Name))
+            .ToCypherQuery()));
+    }
+
+    [Fact]
+    public void A_captured_queryable_is_rejected_rather_than_run_as_a_second_query()
+    {
+        // The nominator must refuse to fold the captured queryable; folding it would compile and
+        // execute 'other' against the server while this query is still being translated.
+        var other = QueryHarnessExtensions.Nodes<Person>();
+
+        var message = Throws(() => QueryHarnessExtensions.Nodes<Person>()
+            .Where(p => p.Age > other.Count())
+            .ToCypherQuery());
+
+        Assert.Contains("nested query", message);
+        Assert.Contains("second query", message);
+    }
+
+    [Fact]
+    public void Distinct_over_a_reference_projection_without_value_equality_is_rejected()
+    {
+        // Company does not override Equals, so LINQ would compare the materialized objects by
+        // reference and keep every row, while RETURN DISTINCT collapses equal property values.
+        var message = Throws(() => QueryHarnessExtensions.Nodes<Person>()
+            .Select(p => new Company { Name = p.Name, Founded = p.Age })
+            .Distinct()
+            .ToCypherQuery());
+
+        Assert.Contains("Distinct", message);
+        Assert.Contains("Company", message);
+        Assert.Contains("reference", message);
+    }
+
+    [Fact]
     public void A_queryable_Contains_source_is_rejected_instead_of_being_executed()
     {
         // Enumerating the inner queryable would run a second query and pull its rows to the client
@@ -410,7 +461,7 @@ public class UnsupportedExpressionTests
             .Where(p => names.Contains(p.Name))
             .ToCypherQuery());
 
-        Assert.Contains("IQueryable", message);
+        Assert.Contains("nested query", message);
         Assert.Contains("ToList()", message);
     }
 
