@@ -109,6 +109,15 @@ internal sealed class ParameterBag
             return normalizedMap;
         }
 
+        // Enumerating a queryable here would run a second query and pull its rows to the client in
+        // the middle of translating this one, which is exactly the silent client-side fallback the
+        // provider promises never to do.
+        if (value is IQueryable)
+        {
+            throw new NotSupportedException(
+                $"An IQueryable of '{value.GetType().GetGenericArguments().FirstOrDefault()?.Name ?? "?"}' cannot be used as a query parameter, because evaluating it would execute a second query and transfer its results to the client. Materialize it first with ToList() if you intend to send the values as a parameter.");
+        }
+
         if (value is IEnumerable enumerable)
         {
             return enumerable.Cast<object>().Select(Normalize).ToArray();

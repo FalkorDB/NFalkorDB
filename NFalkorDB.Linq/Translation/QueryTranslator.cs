@@ -377,7 +377,7 @@ internal sealed class QueryTranslator
                 "Only the SelectMany overloads taking a collection selector, optionally with a result selector, are supported.");
         }
 
-        var collectionSelector = GetLambda(call, 1);
+        var collectionSelector = GetUnaryLambda(call, 1);
 
         // The compiler inserts a Convert when the navigation property is typed as a concrete
         // collection but SelectMany wants IEnumerable<T>.

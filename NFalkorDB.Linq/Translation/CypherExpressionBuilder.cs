@@ -290,9 +290,19 @@ internal sealed class CypherExpressionBuilder
                 return new CypherFragment("-" + Render(Visit(unary.Operand), PrecedenceUnary), PrecedenceUnary);
 
             case ExpressionType.Quote:
+                return Visit(unary.Operand);
+
             case ExpressionType.Convert:
             case ExpressionType.ConvertChecked:
             case ExpressionType.TypeAs:
+                // Unwrap deliberately preserves casts that can change a value; dropping them here
+                // would silently translate a different predicate than the one that was written.
+                if (!IsValuePreservingConversion(unary.Operand.Type, unary.Type))
+                {
+                    throw new NotSupportedException(
+                        $"The cast '({unary.Type.Name}){unary.Operand}' cannot be translated to Cypher, because FalkorDB has no equivalent conversion and ignoring the cast would change the result. Apply the conversion to the stored value instead, or compare against a value of type '{unary.Operand.Type.Name}'.");
+                }
+
                 return Visit(unary.Operand);
         }
 
@@ -490,19 +500,39 @@ internal sealed class CypherExpressionBuilder
             $"The lambda parameter '{parameter.Name}' is not bound to a pattern alias and cannot be translated to Cypher.");
     }
 
+    /// <summary>
+    /// Reports whether a conversion leaves the value FalkorDB would see unchanged, so that dropping
+    /// it from the translated expression cannot alter the result.
+    /// </summary>
+    private static bool IsValuePreservingConversion(Type operandType, Type targetType)
+    {
+        var operand = ScalarTypes.Unwrap(operandType);
+        var target = ScalarTypes.Unwrap(targetType);
+
+        // Identity, and the nullable lifting the compiler inserts around optional members.
+        if (operand == target)
+        {
+            return true;
+        }
+
+        // Boxing and reference conversions do not change the underlying value.
+        if (target == typeof(object) || (!target.IsValueType && target.IsAssignableFrom(operand)))
+        {
+            return true;
+        }
+
+        // Enums are mapped by name, so the compiler-inserted enum-to-underlying conversion is
+        // resolved by the parameter binder rather than by the rendered expression.
+        return operand.IsEnum;
+    }
+
     private static Expression Unwrap(Expression expression)
     {
         while (expression is UnaryExpression unary &&
                (unary.NodeType == ExpressionType.Convert || unary.NodeType == ExpressionType.ConvertChecked || unary.NodeType == ExpressionType.Quote))
         {
-            var operandType = ScalarTypes.Unwrap(unary.Operand.Type);
-            var targetType = ScalarTypes.Unwrap(unary.Type);
-
-            // Keep a genuine cast such as (double)someInt; only strip boxing, nullable lifting and
-            // the enum-to-underlying conversions the C# compiler inserts.
-            var isLifting = targetType == operandType || targetType == typeof(object) || operandType.IsEnum;
-
-            if (!isLifting)
+            if (unary.NodeType != ExpressionType.Quote &&
+                !IsValuePreservingConversion(unary.Operand.Type, unary.Type))
             {
                 break;
             }

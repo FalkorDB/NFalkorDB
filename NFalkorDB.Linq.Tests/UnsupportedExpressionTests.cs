@@ -236,4 +236,78 @@ public class UnsupportedExpressionTests
 
         Assert.Equal("MATCH (n0:Person) RETURN DISTINCT n0.name", cypher);
     }
+
+    [Fact]
+    public void A_truncating_cast_is_rejected_rather_than_silently_dropped()
+    {
+        // (int)2.7 == 2 in C#, but Cypher has no cast, so dropping it would compare the stored
+        // 2.7 against 2 and quietly return the wrong rows.
+        var message = Throws(() => QueryHarnessExtensions.Nodes<Person>()
+            .Where(p => (int)p.Height == 2)
+            .ToCypherQuery());
+
+        Assert.Contains("cast", message);
+        Assert.Contains("change the result", message);
+    }
+
+    [Fact]
+    public void A_widening_cast_is_rejected_rather_than_silently_dropped()
+    {
+        var message = Throws(() => QueryHarnessExtensions.Nodes<Person>()
+            .Where(p => (double)p.Age == 2.0)
+            .ToCypherQuery());
+
+        Assert.Contains("(Double)", message);
+    }
+
+    [Fact]
+    public void An_enum_cast_is_value_preserving_and_still_translates()
+    {
+        // Enums are bound by name, so the compiler's enum-to-int conversion is resolved by the
+        // parameter binder rather than by the rendered expression.
+        var query = QueryHarnessExtensions.Nodes<Person>()
+            .Where(p => (int)p.Rating == 2)
+            .ToCypherQuery();
+
+        Assert.Equal("MATCH (n0:Person) WHERE n0.rating = $p0 RETURN n0", query.Cypher);
+        Assert.Equal("Great", Assert.Contains("p0", query.Parameters));
+    }
+
+    [Fact]
+    public void The_index_aware_SelectMany_overload_is_rejected()
+    {
+        var message = Throws(() => QueryHarnessExtensions.Nodes<Person>()
+            .SelectMany((p, index) => p.Knows)
+            .ToCypherQuery());
+
+        Assert.Contains("SelectMany", message);
+        Assert.Contains("ordinal", message);
+    }
+
+    [Fact]
+    public void A_queryable_Contains_source_is_rejected_instead_of_being_executed()
+    {
+        // Enumerating the inner queryable would run a second query and pull its rows to the client
+        // in the middle of translating this one.
+        var names = QueryHarnessExtensions.Nodes<Person>().Select(p => p.Name);
+
+        var message = Throws(() => QueryHarnessExtensions.Nodes<Person>()
+            .Where(p => names.Contains(p.Name))
+            .ToCypherQuery());
+
+        Assert.Contains("IQueryable", message);
+        Assert.Contains("ToList()", message);
+    }
+
+    [Fact]
+    public void A_materialized_Contains_source_is_still_supported()
+    {
+        var names = QueryHarnessExtensions.Nodes<Person>().Select(p => p.Name).ToList();
+
+        var query = QueryHarnessExtensions.Nodes<Person>()
+            .Where(p => names.Contains(p.Name))
+            .ToCypherQuery();
+
+        Assert.Equal("MATCH (n0:Person) WHERE n0.name IN $p0 RETURN n0", query.Cypher);
+    }
 }
