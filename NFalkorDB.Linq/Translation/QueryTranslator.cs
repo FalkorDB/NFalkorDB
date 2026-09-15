@@ -200,13 +200,11 @@ internal sealed class QueryTranslator
                 return;
 
             case nameof(Queryable.Min):
-                GuardNotEnumOrdered(call.Method.ReturnType, nameof(Queryable.Min));
                 ApplyOptionalSelector(call);
                 ApplyTerminal(TerminalOperator.Min, call.Method.ReturnType);
                 return;
 
             case nameof(Queryable.Max):
-                GuardNotEnumOrdered(call.Method.ReturnType, nameof(Queryable.Max));
                 ApplyOptionalSelector(call);
                 ApplyTerminal(TerminalOperator.Max, call.Method.ReturnType);
                 return;
@@ -551,10 +549,12 @@ internal sealed class QueryTranslator
                 break;
 
             case TerminalOperator.Min:
+                GuardNotEnumOrdered(resultType, nameof(Queryable.Min));
                 ApplyAggregate("min", null, null, nameof(Queryable.Min));
                 break;
 
             case TerminalOperator.Max:
+                GuardNotEnumOrdered(resultType, nameof(Queryable.Max));
                 ApplyAggregate("max", null, null, nameof(Queryable.Max));
                 break;
 
@@ -724,6 +724,11 @@ internal sealed class QueryTranslator
         var index = _model.ReturnItems.Count;
         var expression = new CypherExpressionBuilder(_parameters, bindings).Translate(body);
 
+        // A boxing or identity cast such as `p => (object)p` does not change what the row holds, so
+        // the projection is shaped from the operand. Otherwise the entity would be handed back as a
+        // raw Node instead of the mapped POCO.
+        body = UnwrapProjection(body);
+
         EntityMetadata entityMetadata = null;
 
         if (body is ParameterExpression parameter && bindings.TryGetValue(parameter, out var binding))
@@ -734,6 +739,23 @@ internal sealed class QueryTranslator
         _model.ReturnItems.Add(new ReturnItem(expression, ResolveAlias(memberName, index, usedAliases)));
 
         return new ColumnShape(index, body.Type, entityMetadata, memberName ?? body.Type.Name);
+    }
+
+    /// <summary>
+    /// Strips boxing and reference conversions from a projected expression. Conversions that change
+    /// the value are left in place; the expression builder rejects those.
+    /// </summary>
+    private static Expression UnwrapProjection(Expression body)
+    {
+        while (body is UnaryExpression unary &&
+               (unary.NodeType == ExpressionType.Convert || unary.NodeType == ExpressionType.ConvertChecked) &&
+               (unary.Type == typeof(object) ||
+                (!unary.Type.IsValueType && unary.Type.IsAssignableFrom(unary.Operand.Type))))
+        {
+            body = unary.Operand;
+        }
+
+        return body;
     }
 
     private static string ResolveAlias(string memberName, int index, HashSet<string> usedAliases)

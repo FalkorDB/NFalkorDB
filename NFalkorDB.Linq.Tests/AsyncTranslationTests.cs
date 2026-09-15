@@ -95,8 +95,7 @@ public class AsyncTranslationTests
 
     [Fact]
     public async Task Aggregate_async_operators_wrap_the_projected_column()
-    {
-        Assert.Equal(
+    {        Assert.Equal(
             "MATCH (n0:Person) RETURN sum(n0.age)",
             await CypherOf(h => h.Nodes<Person>().SumAsync(p => p.Age)));
 
@@ -111,6 +110,46 @@ public class AsyncTranslationTests
         Assert.Equal(
             "MATCH (n0:Person) RETURN max(n0.name)",
             await CypherOf(h => h.Nodes<Person>().MaxAsync(p => p.Name)));
+    }
+
+    [Fact]
+    public async Task Aggregate_async_operators_accept_an_already_projected_query()
+    {
+        // Sum and Average previously had selector overloads only, so an already projected query
+        // could be fed to MinAsync/MaxAsync but not to SumAsync/AverageAsync.
+        Assert.Equal(
+            "MATCH (n0:Person) RETURN sum(n0.age)",
+            await CypherOf(h => h.Nodes<Person>().Select(p => p.Age).SumAsync()));
+
+        Assert.Equal(
+            "MATCH (n0:Person) RETURN sum(n0.height)",
+            await CypherOf(h => h.Nodes<Person>().Select(p => p.Height).SumAsync()));
+
+        Assert.Equal(
+            "MATCH (n0:Person) RETURN avg(n0.age)",
+            await CypherOf(h => h.Nodes<Person>().Select(p => p.Age).AverageAsync()));
+
+        Assert.Equal(
+            "MATCH (n0:Person) RETURN min(n0.age)",
+            await CypherOf(h => h.Nodes<Person>().Select(p => p.Age).MinAsync()));
+    }
+
+    [Theory]
+    [InlineData("Min")]
+    [InlineData("Max")]
+    public async Task The_async_extrema_reject_enums_exactly_like_the_synchronous_ones(string @operator)
+    {
+        // The guard lives in the shared terminal path, so the async entry points cannot bypass it.
+        var syncMessage = Assert.Throws<NotSupportedException>(() => @operator == "Min"
+            ? (object)QueryHarnessExtensions.Nodes<Person>().Min(p => p.Rating)
+            : QueryHarnessExtensions.Nodes<Person>().Max(p => p.Rating)).Message;
+
+        var asyncMessage = (await Assert.ThrowsAsync<NotSupportedException>(() => @operator == "Min"
+            ? QueryHarnessExtensions.Nodes<Person>().MinAsync(p => p.Rating)
+            : QueryHarnessExtensions.Nodes<Person>().MaxAsync(p => p.Rating))).Message;
+
+        Assert.Contains("lexically", asyncMessage);
+        Assert.Equal(syncMessage, asyncMessage);
     }
 
     [Fact]

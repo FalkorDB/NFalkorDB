@@ -299,6 +299,62 @@ public static class GraphQueryableAsyncExtensions
     public static Task<decimal> AverageAsync<T>(this IQueryable<T> source, Expression<Func<T, decimal>> selector, CancellationToken cancellationToken = default) =>
         Execute<decimal, decimal>(Project(source, selector), TerminalOperator.Average, typeof(decimal), cancellationToken);
 
+    /// <summary>Sums an already projected query.</summary>
+    /// <param name="source">The query to run.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>The sum.</returns>
+    public static Task<int> SumAsync(this IQueryable<int> source, CancellationToken cancellationToken = default) =>
+        Execute<int, int>(source, TerminalOperator.Sum, typeof(int), cancellationToken);
+
+    /// <summary>Sums an already projected query.</summary>
+    /// <param name="source">The query to run.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>The sum.</returns>
+    public static Task<long> SumAsync(this IQueryable<long> source, CancellationToken cancellationToken = default) =>
+        Execute<long, long>(source, TerminalOperator.Sum, typeof(long), cancellationToken);
+
+    /// <summary>Sums an already projected query.</summary>
+    /// <param name="source">The query to run.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>The sum.</returns>
+    public static Task<double> SumAsync(this IQueryable<double> source, CancellationToken cancellationToken = default) =>
+        Execute<double, double>(source, TerminalOperator.Sum, typeof(double), cancellationToken);
+
+    /// <summary>Sums an already projected query.</summary>
+    /// <param name="source">The query to run.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>The sum.</returns>
+    public static Task<decimal> SumAsync(this IQueryable<decimal> source, CancellationToken cancellationToken = default) =>
+        Execute<decimal, decimal>(source, TerminalOperator.Sum, typeof(decimal), cancellationToken);
+
+    /// <summary>Averages an already projected query.</summary>
+    /// <param name="source">The query to run.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>The mean.</returns>
+    public static Task<double> AverageAsync(this IQueryable<int> source, CancellationToken cancellationToken = default) =>
+        Execute<int, double>(source, TerminalOperator.Average, typeof(double), cancellationToken);
+
+    /// <summary>Averages an already projected query.</summary>
+    /// <param name="source">The query to run.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>The mean.</returns>
+    public static Task<double> AverageAsync(this IQueryable<long> source, CancellationToken cancellationToken = default) =>
+        Execute<long, double>(source, TerminalOperator.Average, typeof(double), cancellationToken);
+
+    /// <summary>Averages an already projected query.</summary>
+    /// <param name="source">The query to run.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>The mean.</returns>
+    public static Task<double> AverageAsync(this IQueryable<double> source, CancellationToken cancellationToken = default) =>
+        Execute<double, double>(source, TerminalOperator.Average, typeof(double), cancellationToken);
+
+    /// <summary>Averages an already projected query.</summary>
+    /// <param name="source">The query to run.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>The mean.</returns>
+    public static Task<decimal> AverageAsync(this IQueryable<decimal> source, CancellationToken cancellationToken = default) =>
+        Execute<decimal, decimal>(source, TerminalOperator.Average, typeof(decimal), cancellationToken);
+
     private static IQueryable<T> Filter<T>(IQueryable<T> source, Expression<Func<T, bool>> predicate)
     {
         if (source == null)

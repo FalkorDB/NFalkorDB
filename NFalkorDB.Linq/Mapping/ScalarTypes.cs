@@ -53,14 +53,14 @@ internal static class ScalarTypes
             return true;
         }
 
-        if (TryGetDictionaryValueType(type, out _))
+        if (TryGetDictionaryValueType(type, out var dictionaryValue))
         {
-            return true;
+            return IsStorable(dictionaryValue);
         }
 
         if (TryGetElementType(type, out var elementType))
         {
-            return IsScalar(elementType) || TryGetDictionaryValueType(elementType, out _);
+            return IsScalar(elementType) || TryGetDictionaryValueType(elementType, out var nested) && IsStorable(nested);
         }
 
         return false;

@@ -457,6 +457,28 @@ public class IntegrationTests
     }
 
     [Fact]
+    public void A_boxed_entity_projection_still_materializes_the_mapped_type()
+    {
+        // The boxing cast does not change the row, so the projection must keep the entity metadata
+        // rather than handing back the raw Node the driver decoded.
+        var boxed = Context.Nodes<Person>()
+            .Where(p => p.Name == "Alice")
+            .Select(p => (object)p)
+            .Single();
+
+        var person = Assert.IsType<Person>(boxed);
+
+        Assert.Equal("Alice", person.Name);
+
+        var boxedScalar = Context.Nodes<Person>()
+            .Where(p => p.Name == "Alice")
+            .Select(p => (object)p.Age)
+            .Single();
+
+        Assert.Equal(34, Assert.IsType<int>(boxedScalar));
+    }
+
+    [Fact]
     public void A_type_mismatch_is_reported_clearly()
     {
         var exception = Assert.Throws<GraphMappingException>(

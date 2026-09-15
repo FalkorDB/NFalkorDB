@@ -304,6 +304,14 @@ internal sealed class CypherExpressionBuilder
                 // would silently translate a different predicate than the one that was written.
                 if (!IsValuePreservingConversion(unary.Operand.Type, unary.Type))
                 {
+                    var operandType = ScalarTypes.Unwrap(unary.Operand.Type);
+
+                    if (operandType.IsEnum)
+                    {
+                        throw new NotSupportedException(
+                            $"The enum '{operandType.Name}' cannot be converted to '{unary.Type.Name}' in a query, because enum values are stored as member names rather than as their underlying numbers. Compare the enum for equality instead, or map the property to a numeric type.");
+                    }
+
                     throw new NotSupportedException(
                         $"The cast '({unary.Type.Name}){unary.Operand}' cannot be translated to Cypher, because FalkorDB has no equivalent conversion and ignoring the cast would change the result. Apply the conversion to the stored value instead, or compare against a value of type '{unary.Operand.Type.Name}'.");
                 }
@@ -357,8 +365,19 @@ internal sealed class CypherExpressionBuilder
                     PrecedenceComparison);
             }
 
-            if (call.Object == null && call.Arguments.Count == 2 && call.Arguments[0].Type != typeof(string))
+            if (call.Object == null && call.Arguments.Count >= 2 && call.Arguments.Count <= 3 &&
+                call.Arguments[0].Type != typeof(string))
             {
+                // .NET 10 binds `array.Contains(x)` to the MemoryExtensions overload that also takes
+                // an equality comparer when the element type does not implement IEquatable<T>, which
+                // is the case for every enum. A null comparer means default equality, which is what
+                // IN does; a real comparer would change the result, so it is rejected.
+                if (call.Arguments.Count == 3 && !IsNullConstant(call.Arguments[2]))
+                {
+                    throw new NotSupportedException(
+                        $"'{call.Method.Name}' with a custom equality comparer cannot be translated to Cypher, because FalkorDB's IN operator always uses default equality. Drop the comparer, or evaluate the query in memory first.");
+                }
+
                 var collection = StripSpanConversion(call.Arguments[0]);
 
                 return new CypherFragment(
@@ -380,8 +399,7 @@ internal sealed class CypherExpressionBuilder
     /// inserting an implicit array-to-span conversion. The span has no graph equivalent, so the
     /// conversion is peeled back off to recover the underlying collection.
     /// </summary>
-    private static Expression StripSpanConversion(Expression expression)
-    {
+    private static Expression StripSpanConversion(Expression expression)    {
         while (expression is MethodCallExpression call &&
                call.Object == null &&
                call.Arguments.Count == 1 &&
@@ -547,9 +565,29 @@ internal sealed class CypherExpressionBuilder
             return true;
         }
 
-        // Enums are mapped by name, so the compiler-inserted enum-to-underlying conversion is
-        // resolved by the parameter binder rather than by the rendered expression.
-        return operand.IsEnum;
+        // An enum-to-underlying conversion is deliberately NOT treated as value preserving. Enums
+        // are stored as member names, so stripping the cast would render the name where the query
+        // asked for a number. The comparison path strips it locally instead, where the constant on
+        // the other side can be coerced back to a member name.
+        return false;
+    }
+
+    /// <summary>
+    /// Strips the conversions <see cref="Unwrap"/> removes, plus the compiler-inserted
+    /// enum-to-underlying conversion, so the enum operand of a comparison can be recognised.
+    /// </summary>
+    private static Expression UnwrapEnumConversion(Expression expression)
+    {
+        expression = Unwrap(expression);
+
+        while (expression is UnaryExpression unary &&
+               (unary.NodeType == ExpressionType.Convert || unary.NodeType == ExpressionType.ConvertChecked) &&
+               ScalarTypes.Unwrap(unary.Operand.Type).IsEnum)
+        {
+            expression = Unwrap(unary.Operand);
+        }
+
+        return expression;
     }
 
     private static Expression Unwrap(Expression expression)
@@ -574,7 +612,7 @@ internal sealed class CypherExpressionBuilder
 
     private static Type FindEnumType(Expression expression)
     {
-        var type = ScalarTypes.Unwrap(Unwrap(expression).Type);
+        var type = ScalarTypes.Unwrap(UnwrapEnumConversion(expression).Type);
 
         return type.IsEnum ? type : null;
     }
@@ -586,7 +624,11 @@ internal sealed class CypherExpressionBuilder
             return expression;
         }
 
-        if (!(Unwrap(expression) is ConstantExpression constant) || constant.Value == null)
+        // The enum side keeps its enum type so it renders as the stored member name rather than
+        // being rejected as an untranslatable cast.
+        expression = UnwrapEnumConversion(expression);
+
+        if (!(expression is ConstantExpression constant) || constant.Value == null)
         {
             return expression;
         }

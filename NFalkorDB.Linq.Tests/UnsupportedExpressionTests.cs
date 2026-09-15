@@ -1,6 +1,8 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using NFalkorDB.Linq.Mapping;
 using NFalkorDB.Linq.Tests.Model;
 using Xunit;
 
@@ -261,16 +263,92 @@ public class UnsupportedExpressionTests
     }
 
     [Fact]
-    public void An_enum_cast_is_value_preserving_and_still_translates()
+    public void An_enum_cast_inside_a_comparison_still_translates()
     {
-        // Enums are bound by name, so the compiler's enum-to-int conversion is resolved by the
-        // parameter binder rather than by the rendered expression.
+        // The comparison path strips the cast locally and rebinds the ordinal to its member name.
+        // Outside a comparison there is nothing to rebind against, so the cast is rejected instead.
         var query = QueryHarnessExtensions.Nodes<Person>()
             .Where(p => (int)p.Rating == 2)
             .ToCypherQuery();
 
         Assert.Equal("MATCH (n0:Person) WHERE n0.rating = $p0 RETURN n0", query.Cypher);
         Assert.Equal("Great", Assert.Contains("p0", query.Parameters));
+    }
+
+    [Fact]
+    public void An_enum_cast_outside_a_comparison_is_rejected()
+    {
+        // Stripping the cast would return the member name where the caller asked for a number, and
+        // ordering by it would sort lexically instead of by the underlying value.
+        foreach (var build in new Action[]
+                 {
+                     () => QueryHarnessExtensions.Nodes<Person>().Select(p => (int)p.Rating).ToCypherQuery(),
+                     () => QueryHarnessExtensions.Nodes<Person>().OrderBy(p => (int)p.Rating).ToCypherQuery(),
+                     () => QueryHarnessExtensions.Nodes<Person>().Select(p => (long)p.Rating).ToCypherQuery(),
+                 })
+        {
+            var message = Throws(build);
+
+            Assert.Contains("Rating", message);
+            Assert.Contains("member names", message);
+        }
+    }
+
+    [Fact]
+    public void Contains_with_a_custom_equality_comparer_is_rejected()
+    {
+        var ratings = new[] { Rating.Great };
+
+        var message = Throws(() => QueryHarnessExtensions.Nodes<Person>()
+            .Where(p => ratings.Contains(p.Rating, EqualityComparer<Rating>.Default))
+            .ToCypherQuery());
+
+        Assert.Contains("Contains", message);
+        Assert.Contains("comparer", message);
+    }
+
+    [Fact]
+    public void An_enum_array_Contains_becomes_IN()
+    {
+        // .NET 10 binds this to MemoryExtensions.Contains(span, value, comparer) because enums do
+        // not implement IEquatable<T>. The null comparer means default equality, which IN matches.
+        var query = QueryHarnessExtensions.Nodes<Person>()
+            .Where(p => new[] { Rating.Great, Rating.Good }.Contains(p.Rating))
+            .ToCypherQuery();
+
+        Assert.Equal("MATCH (n0:Person) WHERE n0.rating IN $p0 RETURN n0", query.Cypher);
+        Assert.Equal(
+            new[] { "Great", "Good" },
+            ((IEnumerable)Assert.Contains("p0", query.Parameters)).Cast<object>());
+    }
+
+    [Fact]
+    public void A_map_property_whose_values_are_entities_is_rejected()
+    {
+        // Only the value type is new here: Dictionary<string, int> and Dictionary<string, object>
+        // remain storable, because FalkorDB maps hold scalars.
+        var message = Assert.Throws<GraphMappingException>(() => EntityMetadataCache.Get<EntityValuedMap>()).Message;
+
+        Assert.Contains("Lookup", message);
+        Assert.Contains("cannot store", message);
+
+        Assert.Equal(3, EntityMetadataCache.Get<ScalarValuedMaps>().Properties.Count);
+    }
+
+    [Node("EntityValuedMap")]
+    private sealed class EntityValuedMap
+    {
+        public Dictionary<string, Person> Lookup { get; set; }
+    }
+
+    [Node("ScalarValuedMaps")]
+    private sealed class ScalarValuedMaps
+    {
+        public Dictionary<string, int> Counts { get; set; }
+
+        public Dictionary<string, object> Mixed { get; set; }
+
+        public Dictionary<string, Dictionary<string, string>> Nested { get; set; }
     }
 
     [Fact]
