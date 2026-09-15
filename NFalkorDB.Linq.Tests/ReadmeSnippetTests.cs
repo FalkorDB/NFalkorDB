@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -53,5 +54,20 @@ public class ReadmeSnippets
 
         Assert.NotEmpty(context.Nodes<Person>().Where(p => p.Age > 21).Explain());
         Assert.NotEmpty(context.Nodes<Person>().Where(p => p.Age > 21).Profile());
+
+        // The enum snippets: the cast is rejected outside a comparison, and both comparison forms
+        // bind the member name.
+        Assert.Throws<NotSupportedException>(() => context.Nodes<Person>().Select(p => (int)p.Rating).ToList());
+        Assert.Throws<NotSupportedException>(() => context.Nodes<Person>().OrderBy(p => (int)p.Rating).ToList());
+
+        foreach (var enumQuery in new[]
+                 {
+                     context.Nodes<Person>().Where(p => p.Rating == Rating.Great).ToCypherQuery(),
+                     context.Nodes<Person>().Where(p => (int)p.Rating == 2).ToCypherQuery(),
+                 })
+        {
+            Assert.Equal("MATCH (n0:Person) WHERE n0.rating = $p0 RETURN n0", enumQuery.Cypher);
+            Assert.Equal(new Dictionary<string, object> { ["p0"] = "Great" }, enumQuery.Parameters);
+        }
     }
 }

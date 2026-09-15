@@ -314,6 +314,22 @@ order than LINQ would, the provider rejects the operations where this matters â€
 `<`, `<=`, `>`, `>=` â€” with a `NotSupportedException`. Equality, `!=` and `Contains` are unaffected.
 Map the property to a numeric type if you need to order by it.
 
+Casting an enum to its underlying type is rejected for the same reason, because the stored value is
+a name rather than a number:
+
+```csharp
+context.Nodes<Person>().Select(p => (int)p.Rating);   // NotSupportedException
+context.Nodes<Person>().OrderBy(p => (int)p.Rating);  // NotSupportedException
+```
+
+Inside a comparison the cast is fine, since the provider rebinds the other side to its member name.
+Both of these render `n0.rating = $p0` with `$p0` bound to `"Great"`:
+
+```csharp
+context.Nodes<Person>().Where(p => p.Rating == Rating.Great);
+context.Nodes<Person>().Where(p => (int)p.Rating == 2);
+```
+
 ## License
 
 NFalkorDB is licensed under the Apache-2.0 [license ](https://github.com/FalkorDB/NFalkorDB/blob/master/LICENSE).
