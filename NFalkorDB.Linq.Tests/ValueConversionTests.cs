@@ -145,4 +145,24 @@ public class ValueConversionTests
     {
         Assert.Throws<GraphMappingException>(() => Convert(long.MaxValue, typeof(byte)));
     }
+
+    [Fact]
+    public void A_set_interface_is_materialized_as_a_hash_set()
+    {
+        // ISet<T> is accepted as a storable property type, so it has to be materializable: the
+        // interface has no constructor and List<T> does not implement it.
+        var converted = Convert(new object[] { "a", "b", "a" }, typeof(ISet<string>));
+
+        var set = Assert.IsType<HashSet<string>>(converted);
+
+        Assert.Equal(new[] { "a", "b" }, set.OrderBy(v => v).ToArray());
+    }
+
+    [Fact]
+    public void A_concrete_hash_set_property_is_still_materialized()
+    {
+        var converted = Convert(new object[] { 1L, 2L }, typeof(HashSet<int>));
+
+        Assert.Equal(new[] { 1, 2 }, Assert.IsType<HashSet<int>>(converted).OrderBy(v => v).ToArray());
+    }
 }

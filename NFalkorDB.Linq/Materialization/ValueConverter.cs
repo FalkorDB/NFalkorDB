@@ -247,6 +247,15 @@ internal static class ValueConverter
             return list;
         }
 
+        // A set interface cannot be constructed, but it is a legal property type that
+        // ScalarTypes.TryGetElementType accepts, so pick the obvious concrete implementation.
+        var setType = typeof(HashSet<>).MakeGenericType(elementType);
+
+        if (target.IsInterface && target.IsAssignableFrom(setType))
+        {
+            return Activator.CreateInstance(setType, list);
+        }
+
         var enumerableConstructor = target.GetConstructor(new[] { typeof(IEnumerable<>).MakeGenericType(elementType) });
 
         if (enumerableConstructor != null)
