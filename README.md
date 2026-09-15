@@ -165,6 +165,135 @@ For real-world usage and supported operations, see our integration tests:
 These tests cover core functionality, including querying, creating, updating, and deleting graph data.
 [Integration Tests](https://github.com/falkordb/NFalkorDB/blob/master/NFalkorDB.Tests/FalkorDBAPITest.cs)
 
+## LINQ (NFalkorDB.Linq)
+
+`NFalkorDB.Linq` adds a LINQ-to-Cypher `IQueryable` provider on top of the driver. LINQ expressions are
+translated into Cypher and executed **server side** — the provider never falls back to client-side
+evaluation. Anything it cannot translate throws a descriptive `NotSupportedException`.
+
+### Mapping your entities
+
+```c#
+[Node("Person")]              // multiple labels: [Node("Company", "Organization")]
+public class Person
+{
+    [GraphId]                 // FalkorDB's internal entity id
+    public int Id { get; set; }
+
+    [Property("name")]        // key override; without it the CLR name is used
+    public string Name { get; set; }
+
+    public int Age { get; set; }
+
+    [Ignore]                  // never read or written
+    public string Scratch { get; set; }
+
+    public List<Person> Knows { get; set; }   // navigation property, see below
+}
+
+[Relationship("KNOWS")]
+public class Knows
+{
+    [GraphId] public int Id { get; set; }
+    public int Since { get; set; }
+}
+```
+
+Attributes are optional: without them the CLR type name becomes the label and CLR property names
+become property keys. Metadata is built once by reflection and cached per type.
+
+### Querying
+
+```c#
+var graph = new FalkorDB(muxr.GetDatabase()).SelectGraph("social");
+var context = new GraphContext(graph);
+
+// MATCH (n0:Person) WHERE n0.age > $p0 RETURN n0 ORDER BY n0.name ASC LIMIT 10
+var adults = context.Nodes<Person>()
+    .Where(p => p.Age > 21)
+    .OrderBy(p => p.Name)
+    .Take(10)
+    .ToList();
+
+// MATCH ()-[r0:KNOWS]->() WHERE r0.since >= $p0 RETURN r0
+var recent = context.Relationships<Knows>().Where(k => k.Since >= 2020).ToList();
+```
+
+Supported operators: `Where`, `Select`, `SelectMany`, `OrderBy(Descending)`, `ThenBy(Descending)`,
+`Skip`, `Take`, `Distinct`, `First(OrDefault)`, `Single(OrDefault)`, `Any`, `All`, `Count`,
+`LongCount`, `Sum`, `Min`, `Max`, `Average`.
+
+Supported predicates: `== != < <= > >=`, `&& || !`, `null` comparisons (`IS NULL` / `IS NOT NULL`),
+`string.StartsWith/EndsWith/Contains` (`STARTS WITH` / `ENDS WITH` / `CONTAINS`),
+`Enumerable.Contains` (`IN`), `string.ToUpper/ToLower` (`toUpper()` / `toLower()`), and common `Math`
+functions. Captured variables are evaluated locally and emitted as parameters.
+
+### Traversal
+
+`Traverse<TEdge, TTarget>()` is the primary traversal design — it is explicit about the relationship
+type and the target label:
+
+```c#
+// MATCH (n0:Person)-[r0:KNOWS]->(n1:Person) WHERE n0.name = $p0 RETURN n1
+var friends = context.Nodes<Person>()
+    .Where(p => p.Name == "Alice")
+    .Traverse<Knows, Person>()
+    .ToList();
+
+// Filter on the relationship, and walk incoming edges
+var mentors = context.Nodes<Person>()
+    .Traverse<Knows, Person>(k => k.Since > 2015, TraversalDirection.Incoming)
+    .ToList();
+```
+
+Traversals chain, so `.Traverse<Knows, Person>().Traverse<WorksAt, Company>()` renders a single
+multi-hop `MATCH`. As sugar, `SelectMany` over a navigation property does the same thing:
+
+```c#
+var pairs = context.Nodes<Person>()
+    .SelectMany(p => p.Knows, (p, friend) => new { Who = p.Name, Friend = friend.Name })
+    .ToList();
+```
+
+### Async
+
+```c#
+var people  = await context.Nodes<Person>().Where(p => p.Active).ToListAsync();
+var oldest  = await context.Nodes<Person>().OrderByDescending(p => p.Age).FirstOrDefaultAsync();
+var total   = await context.Nodes<Person>().CountAsync();
+var average = await context.Nodes<Person>().AverageAsync(p => p.Age);
+```
+
+`ToListAsync`, `ToArrayAsync`, `FirstAsync`, `FirstOrDefaultAsync`, `SingleAsync`,
+`SingleOrDefaultAsync`, `CountAsync`, `LongCountAsync`, `AnyAsync`, `AllAsync`, `SumAsync`,
+`MinAsync`, `MaxAsync` and `AverageAsync` are all available, each accepting a `CancellationToken`.
+Pure reads use `ReadOnlyQuery`/`ReadOnlyQueryAsync` so they can be served by replicas.
+
+### Inspecting the generated query
+
+```c#
+var query = context.Nodes<Person>().Where(p => p.Age > 21).ToCypherQuery();
+
+query.Cypher;      // MATCH (n0:Person) WHERE n0.age > $p0 RETURN n0
+query.Parameters;  // { p0 = 21 }
+
+context.Nodes<Person>().Where(p => p.Age > 21).Explain();  // execution plan
+context.Nodes<Person>().Where(p => p.Age > 21).Profile();  // profiled plan
+```
+
+### Parameterization
+
+Every user value — including captured closure variables and collection literals — is routed through
+the parameters dictionary that `FalkorDBUtilities.PrepareQuery` renders as a `CYPHER k=v` prefix.
+Values are **never** concatenated into the Cypher text, so hostile input such as
+`" OR 1=1 --` is matched as a literal string rather than changing the query.
+
+### Ordering rule
+
+`Where` and `OrderBy` must come before `Select`, and before `Skip`/`Take`/`Distinct`, so the sort and
+filter keys can be translated against the matched entity. Reordering them throws a
+`NotSupportedException` explaining what to do instead.
+
 ## License
 
 NFalkorDB is licensed under the Apache-2.0 [license ](https://github.com/FalkorDB/NFalkorDB/blob/master/LICENSE).
