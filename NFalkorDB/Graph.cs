@@ -233,18 +233,9 @@ public class Graph
     /// <returns>A result set.</returns>
     public ResultSet CallProcedure(string procedure, IEnumerable<string> args = null, Dictionary<string, List<string>> kwargs = null, CommandFlags flags = CommandFlags.None)
     {
-        args = args?.Select(a => QuoteString(a));
+        var queryBody = BuildQueryBodyForProcedureCall(procedure, ref args, kwargs);
 
-        var queryBody = new StringBuilder();
-
-        queryBody.Append(args != null ? $"CALL {procedure}({string.Join(",", args)})" : $"CALL {procedure}()");
-
-        if (kwargs != null && kwargs.TryGetValue("y", out var kwargsList))
-        {
-            queryBody.Append(string.Join(",", kwargsList));
-        }
-
-        return Query(queryBody.ToString(), flags: flags);
+        return Query(queryBody, flags: flags);
     }
 
     /// <summary>
@@ -255,20 +246,11 @@ public class Graph
     /// <param name="kwargs">A collection of keyword arguments.</param>
     /// <param name="flags">[Optional] Command flags that are to be sent to the StackExchange.Redis connection multiplexer...</param>/// 
     /// <returns>A result set.</returns>
-    public Task<ResultSet> CallProcedureAsync(string procedure, IEnumerable<string> args, Dictionary<string, List<string>> kwargs, CommandFlags flags = CommandFlags.None)
+    public Task<ResultSet> CallProcedureAsync(string procedure, IEnumerable<string> args = null, Dictionary<string, List<string>> kwargs = null, CommandFlags flags = CommandFlags.None)
     {
-        args = args.Select(a => QuoteString(a));
+        var queryBody = BuildQueryBodyForProcedureCall(procedure, ref args, kwargs);
 
-        var queryBody = new StringBuilder();
-
-        queryBody.Append($"CALL {procedure}({string.Join(",", args)})");
-
-        if (kwargs.TryGetValue("y", out var kwargsList))
-        {
-            queryBody.Append(string.Join(",", kwargsList));
-        }
-
-        return QueryAsync(queryBody.ToString(), flags: flags);
+        return QueryAsync(queryBody, flags: flags);
     }
 
     /// <summary>
@@ -281,18 +263,9 @@ public class Graph
     /// <returns>A result set.</returns>
     public ResultSet CallProcedureReadOnly(string procedure, IEnumerable<string> args = null, Dictionary<string, List<string>> kwargs = null, CommandFlags flags = CommandFlags.None)
     {
-        args = args.Select(a => QuoteString(a));
+        var queryBody = BuildQueryBodyForProcedureCall(procedure, ref args, kwargs);
 
-        var queryBody = new StringBuilder();
-
-        queryBody.Append($"CALL {procedure}({string.Join(",", args)})");
-
-        if (kwargs != null && kwargs.TryGetValue("y", out var kwargsList))
-        {
-            queryBody.Append(string.Join(",", kwargsList));
-        }
-
-        return ReadOnlyQuery(queryBody.ToString(), flags: flags);
+        return ReadOnlyQuery(queryBody, flags: flags);
     }
 
     /// <summary>
@@ -305,18 +278,25 @@ public class Graph
     /// <returns>A result set.</returns>
     public Task<ResultSet> CallProcedureReadOnlyAsync(string procedure, IEnumerable<string> args = null, Dictionary<string, List<string>> kwargs = null, CommandFlags flags = CommandFlags.None)
     {
-        args = args.Select(a => QuoteString(a));
+        var queryBody = BuildQueryBodyForProcedureCall(procedure, ref args, kwargs);
+
+        return ReadOnlyQueryAsync(queryBody, flags: flags);
+    }
+
+    internal static string BuildQueryBodyForProcedureCall(string procedure, ref IEnumerable<string> args, Dictionary<string, List<string>> kwargs)
+    {
+        args = args?.Select(QuoteString);
 
         var queryBody = new StringBuilder();
 
-        queryBody.Append($"CALL {procedure}({string.Join(",", args)})");
+        queryBody.Append(args != null ? $"CALL {procedure}({string.Join(",", args)})" : $"CALL {procedure}()");
 
-        if (kwargs.TryGetValue("y", out var kwargsList))
+        if (kwargs != null && kwargs.TryGetValue("y", out var kwargsList) && kwargsList != null && kwargsList.Count > 0)
         {
-            queryBody.Append(string.Join(",", kwargsList));
+            queryBody.Append($" YIELD {string.Join(",", kwargsList)}");
         }
 
-        return ReadOnlyQueryAsync(queryBody.ToString(), flags: flags);
+        return queryBody.ToString();
     }
 
     /// <summary>
