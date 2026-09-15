@@ -314,6 +314,25 @@ public class UnsupportedExpressionTests
     }
 
     [Fact]
+    public void Comparing_an_enum_against_a_non_enum_property_is_rejected()
+    {
+        // Rating is stored as a member name, so 'n0.rating = n0.age' would compare that name with a
+        // number and never match. Rejecting beats emitting a predicate that silently finds nothing.
+        foreach (var build in new Action[]
+                 {
+                     () => QueryHarnessExtensions.Nodes<Person>().Where(p => (int)p.Rating == p.Age).ToCypherQuery(),
+                     () => QueryHarnessExtensions.Nodes<Person>().Where(p => p.Age == (int)p.Rating).ToCypherQuery(),
+                     () => QueryHarnessExtensions.Nodes<Person>().Where(p => (int)p.Rating != p.Age).ToCypherQuery(),
+                 })
+        {
+            var message = Throws(build);
+
+            Assert.Contains("Rating", message);
+            Assert.Contains("member names", message);
+        }
+    }
+
+    [Fact]
     public void Contains_with_a_custom_equality_comparer_is_rejected()    {
         var ratings = new[] { Rating.Great };
 

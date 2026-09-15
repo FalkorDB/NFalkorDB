@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using NFalkorDB.Linq.Translation;
 
 namespace NFalkorDB.Linq.Mapping;
 
@@ -107,10 +108,28 @@ public sealed class EntityMetadata
 
     /// <summary>
     /// The label pattern fragment for a node, for example <c>:Person:Employee</c>.
-    /// Empty when the type declares no labels.
+    /// Labels that are not bare identifiers are backtick-escaped, so the fragment is always safe to
+    /// splice into a Cypher pattern. Empty when the type declares no labels.
     /// </summary>
-    public string LabelPattern =>
-        Labels.Count == 0 ? string.Empty : ":" + string.Join(":", Labels.ToArray());
+    public string LabelPattern
+    {
+        get
+        {
+            if (Labels.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            var escaped = new string[Labels.Count];
+
+            for (var index = 0; index < Labels.Count; index++)
+            {
+                escaped[index] = CypherIdentifier.Escape(Labels[index]);
+            }
+
+            return ":" + string.Join(":", escaped);
+        }
+    }
 }
 
 /// <summary>

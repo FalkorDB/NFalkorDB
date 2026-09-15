@@ -146,6 +146,20 @@ public class EntityMappingTests
     {
     }
 
+    [Node("Odd Label", "Plain")]
+    private class AwkwardLabels
+    {
+        public int Age { get; set; }
+    }
+
+    [Fact]
+    public void A_label_pattern_escapes_labels_that_are_not_bare_identifiers()
+    {
+        // LabelPattern is public and documented as a Cypher fragment, so it has to apply the same
+        // escaping the MATCH renderer does rather than handing out a fragment that will not parse.
+        Assert.Equal(":`Odd Label`:Plain", EntityMetadataCache.Get<AwkwardLabels>().LabelPattern);
+    }
+
     private class DuplicateKeys
     {
         [Property("name")]

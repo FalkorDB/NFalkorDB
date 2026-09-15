@@ -657,6 +657,16 @@ internal sealed class CypherExpressionBuilder
         return type.IsEnum ? type : null;
     }
 
+    /// <summary>
+    /// Rewrites one side of a comparison whose other side is an enum so that it renders as the
+    /// stored member name.
+    /// </summary>
+    /// <remarks>
+    /// Only two operand shapes survive: another enum expression, which already renders as a member
+    /// name, and a literal that can be rebound to <paramref name="enumType"/>. Anything else -- most
+    /// importantly a second property read such as <c>p.Age</c> -- is rejected, because emitting it
+    /// verbatim would compare a member name against a number and silently never match.
+    /// </remarks>
     private static Expression CoerceEnum(Expression expression, Type enumType)
     {
         if (enumType == null)
@@ -664,33 +674,36 @@ internal sealed class CypherExpressionBuilder
             return expression;
         }
 
+        var original = expression;
+
         // The enum side keeps its enum type so it renders as the stored member name rather than
         // being rejected as an untranslatable cast.
         expression = UnwrapEnumConversion(expression);
 
-        if (!(expression is ConstantExpression constant) || constant.Value == null)
+        if (ScalarTypes.Unwrap(expression.Type).IsEnum || IsNullConstant(expression))
         {
             return expression;
         }
 
-        if (constant.Value is Enum)
+        if (expression is ConstantExpression constant && constant.Value is IConvertible)
         {
-            return constant;
+            if (constant.Value is Enum)
+            {
+                return constant;
+            }
+
+            try
+            {
+                return Expression.Constant(Enum.ToObject(enumType, constant.Value), enumType);
+            }
+            catch (ArgumentException)
+            {
+                // Falls through to the rejection below: the literal is not a valid underlying value.
+            }
         }
 
-        if (!(constant.Value is IConvertible))
-        {
-            return expression;
-        }
-
-        try
-        {
-            return Expression.Constant(Enum.ToObject(enumType, constant.Value), enumType);
-        }
-        catch (ArgumentException)
-        {
-            return expression;
-        }
+        throw new NotSupportedException(
+            $"'{original}' cannot be compared with the enum '{enumType.Name}', because enum values are stored as member names and the comparison would test that name against a '{ScalarTypes.Unwrap(expression.Type).Name}'. Compare against a value of type '{enumType.Name}' or another '{enumType.Name}' property instead.");
     }
 
     private static NotSupportedException Unsupported(Expression expression) =>

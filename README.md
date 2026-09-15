@@ -348,6 +348,31 @@ Equality needs no such treatment, because a `null` operand and a `false` result 
 `WHERE` alike. The fallback is only emitted when an operand can actually be null, so
 `Where(p => p.Age != 30)` on a non-nullable `int` still renders the plain `n0.age <> $p0`.
 
+### Model optional properties as nullable
+
+That last sentence is a contract, not an accident: **a non-nullable mapped property is assumed to be
+present on every matched node.** Because FalkorDB is schemaless, nothing enforces that, so if the
+graph really can omit a property, map it as `int?`, `DateTime?`, or a reference type.
+
+The difference is visible when a node has no `age` at all:
+
+| Mapping | `Where(p => p.Age != 30)` | Matches the node? |
+| --- | --- | --- |
+| `int Age` | `n0.age <> $p0` | no |
+| `int? Age` | `coalesce(n0.age <> $p0, true)` | yes |
+
+The provider deliberately does *not* coalesce non-nullable reads to `default(T)`, even though the
+materializer leaves an absent `age` as `0`. Two reasons:
+
+- **It would erase every index.** `EXPLAIN` on an indexed `:P(age)` gives `Node By Index Scan` for
+  `n.age = 0` but `Node By Label Scan` plus a `Filter` for `coalesce(n.age, 0) = 0`. Every indexed
+  predicate in the provider would quietly become a full label scan.
+- **Absent is not zero.** In a graph an absent property means *unknown*, so making
+  `Where(p => p.Age == 0)` return everyone whose age was never recorded would be worse than the
+  mismatch it fixes.
+
+Mapping the property as nullable gives you the LINQ answer *and* keeps the predicate indexable.
+
 ## License
 
 NFalkorDB is licensed under the Apache-2.0 [license ](https://github.com/FalkorDB/NFalkorDB/blob/master/LICENSE).

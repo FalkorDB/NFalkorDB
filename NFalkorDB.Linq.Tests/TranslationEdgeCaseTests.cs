@@ -212,6 +212,26 @@ public class TranslationEdgeCaseTests
     }
 
     [Fact]
+    public void An_enum_still_compares_against_operands_that_can_be_bound_as_a_member_name()
+    {
+        // The rejection of enum-versus-number comparisons must not catch the shapes that do work:
+        // another enum-typed property, an enum literal, and an integral literal that rebinds.
+        Assert.Equal(
+            "MATCH (n0:Person) WHERE n0.rating = n0.rating RETURN n0",
+            QueryHarnessExtensions.Nodes<Person>().Where(p => p.Rating == p.Rating).Cypher());
+
+        var literal = QueryHarnessExtensions.Nodes<Person>().Where(p => p.Rating == Rating.Great).ToCypherQuery();
+
+        Assert.Equal("MATCH (n0:Person) WHERE n0.rating = $p0 RETURN n0", literal.Cypher);
+        Assert.Equal("Great", Assert.Single(literal.Parameters).Value);
+
+        var ordinal = QueryHarnessExtensions.Nodes<Person>().Where(p => (int)p.Rating == 2).ToCypherQuery();
+
+        Assert.Equal("MATCH (n0:Person) WHERE n0.rating = $p0 RETURN n0", ordinal.Cypher);
+        Assert.Equal("Great", Assert.Single(ordinal.Parameters).Value);
+    }
+
+    [Fact]
     public void Inequality_is_null_safe_only_where_a_side_can_be_null()
     {
         // int? Score and string Name can both be absent, so the comparison needs the fallback that
@@ -225,7 +245,8 @@ public class TranslationEdgeCaseTests
             QueryHarnessExtensions.Nodes<Person>().Where(p => p.Name != "Alice").Cypher());
 
         // A non-nullable column compared against a non-null constant cannot produce null, so the
-        // fallback would be dead weight.
+        // fallback would be dead weight. This is the documented contract: a non-nullable mapped
+        // property is assumed present, which is what keeps the predicate indexable.
         Assert.Equal(
             "MATCH (n0:Person) WHERE n0.age <> $p0 RETURN n0",
             QueryHarnessExtensions.Nodes<Person>().Where(p => p.Age != 30).Cypher());

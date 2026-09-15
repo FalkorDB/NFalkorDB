@@ -76,3 +76,5 @@ enums
 lexically
 nullable
 schemaless
+materializer
+indexable
