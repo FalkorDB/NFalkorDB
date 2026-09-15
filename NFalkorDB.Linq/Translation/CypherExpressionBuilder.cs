@@ -285,7 +285,12 @@ internal sealed class CypherExpressionBuilder
             case ExpressionType.Not:
                 if (unary.Operand.Type == typeof(bool) || unary.Operand.Type == typeof(bool?))
                 {
-                    return new CypherFragment("NOT " + Render(Visit(unary.Operand), PrecedenceNot), PrecedenceNot);
+                    // Cypher's NOT propagates null, so `NOT (n0.score > $p0)` is null when the
+                    // property is missing and the row is dropped. C# evaluates the comparison to
+                    // false first, making the negation true, so the operand is coalesced to match.
+                    return new CypherFragment(
+                        "NOT coalesce(" + Visit(unary.Operand).Text + ", false)",
+                        PrecedenceNot);
                 }
 
                 break;
@@ -496,9 +501,44 @@ internal sealed class CypherExpressionBuilder
         var leftFragment = Visit(CoerceEnum(left, enumType));
         var rightFragment = Visit(CoerceEnum(right, enumType));
 
-        return new CypherFragment(
-            Render(leftFragment, PrecedenceComparison) + " " + @operator + " " + Render(rightFragment, PrecedenceComparison),
-            PrecedenceComparison);
+        var text = Render(leftFragment, PrecedenceComparison) + " " + @operator + " " + Render(rightFragment, PrecedenceComparison);
+
+        if (@operator == "<>")
+        {
+            // C# reports two values as unequal when exactly one of them is null, but Cypher's <>
+            // yields null there and the row is filtered out. The fallback restores the C# answer:
+            // <> is only null when a side is null, and then the values differ unless both are null.
+            var leftNullable = CanBeNull(left);
+            var rightNullable = CanBeNull(right);
+
+            if (leftNullable || rightNullable)
+            {
+                var fallback = leftNullable && rightNullable
+                    ? Render(leftFragment, PrecedenceComparison) + " IS NOT NULL OR " +
+                      Render(rightFragment, PrecedenceComparison) + " IS NOT NULL"
+                    : "true";
+
+                return Atom("coalesce(" + text + ", " + fallback + ")");
+            }
+        }
+
+        return new CypherFragment(text, PrecedenceComparison);
+    }
+
+    /// <summary>
+    /// True when the expression can evaluate to null, either because its type is nullable or
+    /// because it reads a property that the node may simply not have.
+    /// </summary>
+    private static bool CanBeNull(Expression expression)
+    {
+        expression = Unwrap(expression);
+
+        if (expression is ConstantExpression constant)
+        {
+            return constant.Value == null;
+        }
+
+        return !expression.Type.IsValueType || Nullable.GetUnderlyingType(expression.Type) != null;
     }
 
     private CypherFragment Infix(Expression left, Expression right, string @operator, int precedence)

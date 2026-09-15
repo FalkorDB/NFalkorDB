@@ -13,6 +13,12 @@ internal abstract class ProjectionShape
 {
     internal abstract Type ResultType { get; }
 
+    /// <summary>
+    /// The type the projected value is actually read as. This differs from
+    /// <see cref="ResultType"/> only when the projection boxes its result.
+    /// </summary>
+    internal virtual Type ValueType => ResultType;
+
     internal abstract object Materialize(Record record);
 }
 
@@ -23,18 +29,37 @@ internal sealed class ColumnShape : ProjectionShape
 {
     private readonly int _index;
     private readonly Type _resultType;
+    private readonly Type _valueType;
     private readonly EntityMetadata _entity;
     private readonly string _context;
 
     internal ColumnShape(int index, Type resultType, EntityMetadata entity, string context)
+        : this(index, resultType, resultType, entity, context)
+    {
+    }
+
+    /// <summary>
+    /// Creates a column whose declared type differs from the type its value is converted to, which
+    /// happens when a projection boxes its result — <c>Select(p =&gt; (object)p.Age)</c> is declared
+    /// as <see cref="object"/> but must still be read as an <see cref="int"/>.
+    /// </summary>
+    /// <param name="index">The zero-based column index in the row.</param>
+    /// <param name="resultType">The type the caller's query is declared to return.</param>
+    /// <param name="valueType">The type the column value is converted to before boxing.</param>
+    /// <param name="entity">The entity to materialize, or null for a scalar column.</param>
+    /// <param name="context">A description of the column used in error messages.</param>
+    internal ColumnShape(int index, Type resultType, Type valueType, EntityMetadata entity, string context)
     {
         _index = index;
         _resultType = resultType;
+        _valueType = valueType;
         _entity = entity;
         _context = context;
     }
 
     internal override Type ResultType => _resultType;
+
+    internal override Type ValueType => _valueType;
 
     internal override object Materialize(Record record)
     {
@@ -48,7 +73,7 @@ internal sealed class ColumnShape : ProjectionShape
 
         return _entity != null
             ? EntityMaterializer.Materialize(value, _entity)
-            : ValueConverter.Convert(value, _resultType, _context);
+            : ValueConverter.Convert(value, _valueType, _context);
     }
 }
 

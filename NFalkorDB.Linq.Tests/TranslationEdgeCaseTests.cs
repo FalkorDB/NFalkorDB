@@ -210,4 +210,46 @@ public class TranslationEdgeCaseTests
 
         Assert.Equal("MATCH (n0:Person) RETURN DISTINCT n0.name ORDER BY n0.name ASC", cypher);
     }
+
+    [Fact]
+    public void Inequality_is_null_safe_only_where_a_side_can_be_null()
+    {
+        // int? Score and string Name can both be absent, so the comparison needs the fallback that
+        // restores C#'s "exactly one side is null means unequal" answer.
+        Assert.Equal(
+            "MATCH (n0:Person) WHERE coalesce(n0.score <> $p0, true) RETURN n0",
+            QueryHarnessExtensions.Nodes<Person>().Where(p => p.Score != 0).Cypher());
+
+        Assert.Equal(
+            "MATCH (n0:Person) WHERE coalesce(n0.name <> $p0, true) RETURN n0",
+            QueryHarnessExtensions.Nodes<Person>().Where(p => p.Name != "Alice").Cypher());
+
+        // A non-nullable column compared against a non-null constant cannot produce null, so the
+        // fallback would be dead weight.
+        Assert.Equal(
+            "MATCH (n0:Person) WHERE n0.age <> $p0 RETURN n0",
+            QueryHarnessExtensions.Nodes<Person>().Where(p => p.Age != 30).Cypher());
+
+        // Equality needs no fallback: C# and Cypher both reject a null operand from a WHERE.
+        Assert.Equal(
+            "MATCH (n0:Person) WHERE n0.score = $p0 RETURN n0",
+            QueryHarnessExtensions.Nodes<Person>().Where(p => p.Score == 0).Cypher());
+
+        // A null constant still uses the dedicated IS NULL form rather than the fallback.
+        Assert.Equal(
+            "MATCH (n0:Person) WHERE n0.score IS NOT NULL RETURN n0",
+            QueryHarnessExtensions.Nodes<Person>().Where(p => p.Score != null).Cypher());
+    }
+
+    [Fact]
+    public void Negation_coalesces_its_operand_before_inverting_it()
+    {
+        Assert.Equal(
+            "MATCH (n0:Person) WHERE NOT coalesce(n0.score > $p0, false) RETURN n0",
+            QueryHarnessExtensions.Nodes<Person>().Where(p => !(p.Score > 0)).Cypher());
+
+        Assert.Equal(
+            "MATCH (n0:Person) WHERE NOT coalesce(n0.active AND n0.age > $p0, false) RETURN n0",
+            QueryHarnessExtensions.Nodes<Person>().Where(p => !(p.Active && p.Age > 18)).Cypher());
+    }
 }

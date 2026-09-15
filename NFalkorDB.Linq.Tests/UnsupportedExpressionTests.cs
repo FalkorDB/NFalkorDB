@@ -276,8 +276,7 @@ public class UnsupportedExpressionTests
     }
 
     [Fact]
-    public void An_enum_cast_outside_a_comparison_is_rejected()
-    {
+    public void An_enum_cast_outside_a_comparison_is_rejected()    {
         // Stripping the cast would return the member name where the caller asked for a number, and
         // ordering by it would sort lexically instead of by the underlying value.
         foreach (var build in new Action[]
@@ -295,8 +294,27 @@ public class UnsupportedExpressionTests
     }
 
     [Fact]
-    public void Contains_with_a_custom_equality_comparer_is_rejected()
+    public void Boxing_an_enum_does_not_slip_past_the_ordering_guard()
     {
+        // The expression builder strips the boxing cast, so the key type reads as object while the
+        // rendered Cypher still orders by the stored member name.
+        foreach (var build in new Action[]
+                 {
+                     () => QueryHarnessExtensions.Nodes<Person>().OrderBy(p => (object)p.Rating).ToCypherQuery(),
+                     () => QueryHarnessExtensions.Nodes<Person>().OrderByDescending(p => (object)p.Rating).ToCypherQuery(),
+                     () => QueryHarnessExtensions.Nodes<Person>().Min(p => (object)p.Rating),
+                     () => QueryHarnessExtensions.Nodes<Person>().Max(p => (object)p.Rating),
+                 })
+        {
+            var message = Throws(build);
+
+            Assert.Contains("Rating", message);
+            Assert.Contains("lexically", message);
+        }
+    }
+
+    [Fact]
+    public void Contains_with_a_custom_equality_comparer_is_rejected()    {
         var ratings = new[] { Rating.Great };
 
         var message = Throws(() => QueryHarnessExtensions.Nodes<Person>()

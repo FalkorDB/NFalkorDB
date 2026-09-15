@@ -330,6 +330,24 @@ context.Nodes<Person>().Where(p => p.Rating == Rating.Great);
 context.Nodes<Person>().Where(p => (int)p.Rating == 2);
 ```
 
+## Null semantics
+
+FalkorDB is schemaless, so a property can simply be absent, and Cypher propagates `null` through
+comparisons. C# does not: `null != 0` is `true`, and `null > 0` is `false`. Translating a predicate
+literally would therefore silently drop rows that LINQ would have kept.
+
+The provider closes that gap rather than leaving it to the caller:
+
+| C# | Cypher |
+| --- | --- |
+| `p.Score != 0` | `coalesce(n0.score <> $p0, true)` |
+| `!(p.Score > 0)` | `NOT coalesce(n0.score > $p0, false)` |
+| `All(p => p.Active)` | `NOT coalesce(n0.active, false)` counted as a violation |
+
+Equality needs no such treatment, because a `null` operand and a `false` result are both rejected by
+`WHERE` alike. The fallback is only emitted when an operand can actually be null, so
+`Where(p => p.Age != 30)` on a non-nullable `int` still renders the plain `n0.age <> $p0`.
+
 ## License
 
 NFalkorDB is licensed under the Apache-2.0 [license ](https://github.com/FalkorDB/NFalkorDB/blob/master/LICENSE).

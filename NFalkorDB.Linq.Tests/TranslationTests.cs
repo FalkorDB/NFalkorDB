@@ -128,7 +128,12 @@ public class TranslationTests
     [Fact]
     public void Negation_becomes_not()
     {
-        AssertQuery(Nodes<Person>().Where(p => !p.Active), "MATCH (n0:Person) WHERE NOT n0.active RETURN n0");
+        // The operand is coalesced because Cypher's NOT propagates null: a node without an `active`
+        // property would otherwise be dropped, where LINQ reads the missing value as false and
+        // includes the row.
+        AssertQuery(
+            Nodes<Person>().Where(p => !p.Active),
+            "MATCH (n0:Person) WHERE NOT coalesce(n0.active, false) RETURN n0");
     }
 
     [Fact]

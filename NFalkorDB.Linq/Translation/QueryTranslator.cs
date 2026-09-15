@@ -444,21 +444,36 @@ internal sealed class QueryTranslator
         var bindings = BindCurrent(keySelector.Parameters[0]);
         var expression = new CypherExpressionBuilder(_parameters, bindings).Translate(keySelector.Body);
 
-        GuardNotEnumOrdered(keySelector.Body.Type, descending ? "OrderByDescending" : "OrderBy");
+        // Boxing is stripped before the guard: the expression builder also strips it, so
+        // `OrderBy(p => (object)p.Rating)` would otherwise order by the stored member name while
+        // the key type reads as object.
+        GuardNotEnumOrdered(UnwrapProjection(keySelector.Body).Type, descending ? "OrderByDescending" : "OrderBy");
 
         _model.OrderByTerms.Add(new OrderByTerm(expression, descending));
     }
 
     /// <summary>
-    /// Rejects ordering or extrema over an enum, which the graph stores as a member name.
+    /// The type an aggregate actually reads. A boxed selector such as
+    /// <c>Min(p =&gt; (object)p.Rating)</c> declares <see cref="object"/> as its return type, but the
+    /// projection still reads the enum underneath, so the declared type cannot be trusted here.
     /// </summary>
-    /// <remarks>
+    private Type EffectiveResultType(Type resultType)
+    {
+        var projected = _projection?.ValueType;
+
+        return projected != null && (resultType == null || resultType == typeof(object))
+            ? projected
+            : resultType;
+    }
+
+    /// <summary>
+    /// Rejects ordering or extrema over an enum, which the graph stores as a member name.
+    /// </summary>    /// <remarks>
     /// Cypher would sort those names lexically — <c>Good, Great, Poor</c> — rather than by the
     /// underlying values that LINQ orders by — <c>Poor, Good, Great</c>.
     /// </remarks>
     private static void GuardNotEnumOrdered(Type type, string @operator)
-    {
-        var unwrapped = ScalarTypes.Unwrap(type);
+    {        var unwrapped = ScalarTypes.Unwrap(type);
 
         if (unwrapped.IsEnum)
         {
@@ -549,12 +564,12 @@ internal sealed class QueryTranslator
                 break;
 
             case TerminalOperator.Min:
-                GuardNotEnumOrdered(resultType, nameof(Queryable.Min));
+                GuardNotEnumOrdered(EffectiveResultType(resultType), nameof(Queryable.Min));
                 ApplyAggregate("min", null, null, nameof(Queryable.Min));
                 break;
 
             case TerminalOperator.Max:
-                GuardNotEnumOrdered(resultType, nameof(Queryable.Max));
+                GuardNotEnumOrdered(EffectiveResultType(resultType), nameof(Queryable.Max));
                 ApplyAggregate("max", null, null, nameof(Queryable.Max));
                 break;
 
@@ -724,31 +739,34 @@ internal sealed class QueryTranslator
         var index = _model.ReturnItems.Count;
         var expression = new CypherExpressionBuilder(_parameters, bindings).Translate(body);
 
-        // A boxing or identity cast such as `p => (object)p` does not change what the row holds, so
-        // the projection is shaped from the operand. Otherwise the entity would be handed back as a
-        // raw Node instead of the mapped POCO.
-        body = UnwrapProjection(body);
+        // A boxing or reference cast such as `p => (object)p` does not change what the row holds, so
+        // the value is read as the operand's type. The column keeps the declared type, because that
+        // is what the caller's IQueryable<T> promised and what the result list is built from.
+        var unwrapped = UnwrapProjection(body);
 
         EntityMetadata entityMetadata = null;
 
-        if (body is ParameterExpression parameter && bindings.TryGetValue(parameter, out var binding))
+        if (unwrapped is ParameterExpression parameter && bindings.TryGetValue(parameter, out var binding))
         {
             entityMetadata = binding.Metadata;
         }
 
         _model.ReturnItems.Add(new ReturnItem(expression, ResolveAlias(memberName, index, usedAliases)));
 
-        return new ColumnShape(index, body.Type, entityMetadata, memberName ?? body.Type.Name);
+        return new ColumnShape(index, body.Type, unwrapped.Type, entityMetadata, memberName ?? body.Type.Name);
     }
 
     /// <summary>
-    /// Strips boxing and reference conversions from a projected expression. Conversions that change
-    /// the value are left in place; the expression builder rejects those.
+    /// Strips boxing and reference conversions from a projected expression, matching what the
+    /// expression builder treats as value preserving. Conversions that change the value are left in
+    /// place; the expression builder rejects those.
     /// </summary>
-    private static Expression UnwrapProjection(Expression body)
+    internal static Expression UnwrapProjection(Expression body)
     {
         while (body is UnaryExpression unary &&
-               (unary.NodeType == ExpressionType.Convert || unary.NodeType == ExpressionType.ConvertChecked) &&
+               (unary.NodeType == ExpressionType.Convert ||
+                unary.NodeType == ExpressionType.ConvertChecked ||
+                unary.NodeType == ExpressionType.TypeAs) &&
                (unary.Type == typeof(object) ||
                 (!unary.Type.IsValueType && unary.Type.IsAssignableFrom(unary.Operand.Type))))
         {

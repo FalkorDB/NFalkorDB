@@ -479,6 +479,75 @@ public class IntegrationTests
     }
 
     [Fact]
+    public void A_boxed_projection_keeps_the_declared_sequence_element_type()
+    {
+        // The value is read as int but the list has to be a List<object>, because that is what the
+        // caller's IQueryable<object> is cast to. Reading and declaring are separate concerns.
+        List<object> ages = Context.Nodes<Person>().Select(p => (object)p.Age).ToList();
+
+        Assert.Equal(4, ages.Count);
+        Assert.All(ages, age => Assert.IsType<int>(age));
+
+        List<object> people = Context.Nodes<Person>().Select(p => (object)p).ToList();
+
+        Assert.Equal(4, people.Count);
+        Assert.All(people, person => Assert.IsType<Person>(person));
+    }
+
+    [Fact]
+    public void A_boxed_projection_defaults_to_null_rather_than_the_unwrapped_default()
+    {
+        // FirstOrDefault has to honour the declared element type: object defaults to null, whereas
+        // the int it is read as would default to 0 and look like a real age.
+        var missing = Context.Nodes<Person>()
+            .Where(p => p.Name == "nobody")
+            .Select(p => (object)p.Age)
+            .FirstOrDefault();
+
+        Assert.Null(missing);
+    }
+
+    [Fact]
+    public void An_as_cast_projection_materializes_the_mapped_type()
+    {
+        // `as` is a reference conversion the expression builder strips, so the projection has to
+        // strip it too or the entity metadata is lost and the raw Node comes back.
+        var boxed = Context.Nodes<Person>()
+            .Where(p => p.Name == "Alice")
+            .Select(p => p as object)
+            .Single();
+
+        Assert.Equal("Alice", Assert.IsType<Person>(boxed).Name);
+    }
+
+    [Fact]
+    public void Inequality_against_a_missing_property_matches_LINQ()
+    {
+        // Carol has no score. C# reads that as null, and `null != 0` is true, so she belongs in the
+        // result. A bare `n0.score <> $p0` evaluates to null in Cypher and would drop her.
+        var names = Context.Nodes<Person>()
+            .Where(p => p.Score != 0)
+            .Select(p => p.Name)
+            .ToList();
+
+        Assert.Contains("Carol", names);
+        Assert.Equal(4, names.Count);
+    }
+
+    [Fact]
+    public void Negating_a_comparison_on_a_missing_property_matches_LINQ()
+    {
+        // `null > 0` is false in C#, so negating it is true and Carol is included. Cypher's NOT
+        // propagates null instead, which would return nobody at all.
+        var names = Context.Nodes<Person>()
+            .Where(p => !(p.Score > 0))
+            .Select(p => p.Name)
+            .ToList();
+
+        Assert.Equal(new[] { "Carol" }, names);
+    }
+
+    [Fact]
     public void A_type_mismatch_is_reported_clearly()
     {
         var exception = Assert.Throws<GraphMappingException>(

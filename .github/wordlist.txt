@@ -74,3 +74,5 @@ Parameterization
 enum
 enums
 lexically
+nullable
+schemaless
