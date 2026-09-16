@@ -1,9 +1,11 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using NFalkorDB.Linq.Mapping;
 using NFalkorDB.Linq.Materialization;
 
@@ -515,36 +517,72 @@ internal sealed class QueryTranslator
     }
 
     /// <summary>
-    /// Rejects <c>Distinct</c> over a fabricated object whose CLR equality is reference equality.
+    /// Rejects <c>Distinct</c> when LINQ and Cypher would not agree on which rows are duplicates.
     /// </summary>
     /// <remarks>
     /// <c>RETURN DISTINCT</c> compares the projected values, while LINQ compares with
-    /// <see cref="EqualityComparer{T}.Default"/>. For a member-init projection such as
-    /// <c>Select(p =&gt; new Company { ... })</c> every materialized instance is a separate object,
-    /// so LINQ would keep every row while Cypher silently collapses rows that share property values.
-    /// Anonymous types and records override equality structurally and so do agree with Cypher, and a
-    /// whole-node projection de-duplicates by graph identity, which is well defined.
+    /// <see cref="EqualityComparer{T}.Default"/>. The two only provably agree when the projected type
+    /// carries the compiler's own structural equality, so only anonymous types, records that kept
+    /// their generated equality, scalars and strings are allowed. A hand-written <c>Equals</c> is not
+    /// enough: it may ignore members, compare them case-insensitively, or call everything equal.
+    /// <para>
+    /// A whole-node projection is the one deliberate exception. <c>RETURN DISTINCT n</c> removes
+    /// duplicates by graph identity, which is exactly what makes <c>Distinct</c> useful after a
+    /// traversal that reaches the same node twice, so it is kept and documented rather than rejected.
+    /// </para>
     /// </remarks>
     private void GuardDistinctEquality()
     {
-        if (!(_projection is ObjectShape shape))
+        if (_projection is ObjectShape shape && !HasProvableValueEquality(shape.ResultType))
         {
-            return;
+            var name = shape.ResultType.Name;
+
+            throw new NotSupportedException(
+                $"Distinct cannot be applied to the projection '{name}', because LINQ compares '{name}' with EqualityComparer<T>.Default -- reference equality unless the type defines its own -- while RETURN DISTINCT compares the projected values, and the provider cannot prove the two agree. Project an anonymous type or a record that keeps its generated equality, or project the node itself to remove duplicates by graph identity.");
         }
 
-        var type = shape.ResultType;
-
-        if (type.IsValueType || type == typeof(string) || OverridesEquals(type))
+        if (_projection is ColumnShape column && column.Entity == null && IsCollectionLike(column.ValueType))
         {
-            return;
+            throw new NotSupportedException(
+                $"Distinct cannot be applied to the '{column.ValueType.Name}' column, because LINQ compares a collection by reference and would keep every row, while Cypher compares lists and maps by value and would collapse them. Project a scalar, or call Distinct after materializing the rows.");
         }
-
-        throw new NotSupportedException(
-            $"Distinct cannot be applied to the projection '{type.Name}', because '{type.Name}' does not override Equals, so LINQ compares the projected objects by reference and would keep every row while Cypher de-duplicates them by value. Project an anonymous type, give '{type.Name}' value equality, or project the node itself to de-duplicate by graph identity.");
     }
 
-    private static bool OverridesEquals(Type type) =>
-        type.GetMethod(nameof(object.Equals), new[] { typeof(object) })?.DeclaringType != typeof(object);
+    private static bool HasProvableValueEquality(Type type) =>
+        type.IsValueType ||
+        type == typeof(string) ||
+        IsAnonymous(type) ||
+        IsRecordWithGeneratedEquality(type);
+
+    private static bool IsAnonymous(Type type) =>
+        type.IsGenericType &&
+        type.Name.IndexOf("AnonymousType", StringComparison.Ordinal) >= 0 &&
+        type.GetCustomAttributes(typeof(CompilerGeneratedAttribute), inherit: false).Length > 0;
+
+    /// <summary>
+    /// True for a record that still uses the equality the compiler generated for it. A record may
+    /// override <c>Equals(T)</c>, and then only the <c>Equals(object)</c> wrapper stays generated, so
+    /// the strongly typed overload is the one worth testing.
+    /// </summary>
+    private static bool IsRecordWithGeneratedEquality(Type type)
+    {
+        var equalityContract = type.GetProperty(
+            "EqualityContract",
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+
+        if (equalityContract == null)
+        {
+            return false;
+        }
+
+        var typed = type.GetMethod("Equals", new[] { type });
+
+        return typed != null &&
+               typed.GetCustomAttributes(typeof(CompilerGeneratedAttribute), inherit: false).Length > 0;
+    }
+
+    private static bool IsCollectionLike(Type type) =>
+        type != typeof(string) && typeof(IEnumerable).IsAssignableFrom(type);
 
     private void ApplyOptionalPredicate(MethodCallExpression call)
     {

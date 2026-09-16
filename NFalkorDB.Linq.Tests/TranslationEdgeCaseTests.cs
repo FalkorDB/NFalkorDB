@@ -280,6 +280,52 @@ public class TranslationEdgeCaseTests
         Assert.Equal(
             "MATCH (n0:Person) RETURN DISTINCT n0",
             QueryHarnessExtensions.Nodes<Person>().Distinct().Cypher());
+
+        // A record keeps the compiler's structural equality, which does agree with RETURN DISTINCT.
+        Assert.Equal(
+            "MATCH (n0:Person) RETURN DISTINCT n0.name AS Name",
+            QueryHarnessExtensions.Nodes<Person>().Select(p => new NameRecord(p.Name)).Distinct().Cypher());
+
+        // A whole node projected as a column still de-duplicates by graph identity.
+        Assert.Equal(
+            "MATCH (n0:Person) RETURN DISTINCT n0",
+            QueryHarnessExtensions.Nodes<Person>().Select(p => p).Distinct().Cypher());
+    }
+
+    [Fact]
+    public void Distinct_over_a_hand_written_equality_is_rejected()
+    {
+        // OverridesEquals used to accept any Equals override, but a hand-written Equals may ignore
+        // members or call everything equal, and then LINQ and RETURN DISTINCT disagree on the rows.
+        var message = Assert.Throws<NotSupportedException>(() =>
+            QueryHarnessExtensions.Nodes<Person>()
+                .Select(p => new AlwaysEqual { Name = p.Name })
+                .Distinct()
+                .Cypher()).Message;
+
+        Assert.Contains("Distinct", message);
+        Assert.Contains(nameof(AlwaysEqual), message);
+
+        // A record may replace its generated Equals too, so the record shape alone is not enough.
+        var record = Assert.Throws<NotSupportedException>(() =>
+            QueryHarnessExtensions.Nodes<Person>()
+                .Select(p => new AlwaysEqualRecord(p.Name))
+                .Distinct()
+                .Cypher()).Message;
+
+        Assert.Contains(nameof(AlwaysEqualRecord), record);
+    }
+
+    [Fact]
+    public void Distinct_over_a_collection_column_is_rejected()
+    {
+        // LINQ compares string[] by reference and keeps every row, while Cypher compares lists by
+        // value and collapses them, so RETURN DISTINCT n0.tags would quietly return fewer rows.
+        var message = Assert.Throws<NotSupportedException>(() =>
+            QueryHarnessExtensions.Nodes<Person>().Select(p => p.Tags).Distinct().Cypher()).Message;
+
+        Assert.Contains("Distinct", message);
+        Assert.Contains("reference", message);
     }
 
     [Fact]
@@ -382,4 +428,34 @@ public class TranslationEdgeCaseTests
             "MATCH (n0:Person) WHERE NOT coalesce(n0.active AND n0.age > $p0, false) RETURN n0",
             QueryHarnessExtensions.Nodes<Person>().Where(p => !(p.Active && p.Age > 18)).Cypher());
     }
+}
+
+/// <summary>A record that keeps the equality the compiler generated for it.</summary>
+/// <param name="Name">The projected name.</param>
+public record NameRecord(string Name);
+
+/// <summary>A record that replaces its generated equality, so only the wrapper stays generated.</summary>
+/// <param name="Name">The projected name.</param>
+public record AlwaysEqualRecord(string Name)
+{
+    /// <summary>Calls every instance equal, which no Cypher comparison does.</summary>
+    /// <param name="other">The instance to compare with.</param>
+    /// <returns>Always true.</returns>
+    public virtual bool Equals(AlwaysEqualRecord other) => true;
+
+    /// <inheritdoc />
+    public override int GetHashCode() => 0;
+}
+
+/// <summary>A class whose hand-written equality ignores its members entirely.</summary>
+public class AlwaysEqual
+{
+    /// <summary>The projected name.</summary>
+    public string Name { get; set; }
+
+    /// <inheritdoc />
+    public override bool Equals(object obj) => obj is AlwaysEqual;
+
+    /// <inheritdoc />
+    public override int GetHashCode() => 0;
 }

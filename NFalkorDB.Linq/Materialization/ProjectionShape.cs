@@ -59,6 +59,11 @@ internal sealed class ColumnShape : ProjectionShape
 
     internal override Type ResultType => _resultType;
 
+    /// <summary>
+    /// The entity this column materializes, or null when the column is a scalar.
+    /// </summary>
+    internal EntityMetadata Entity => _entity;
+
     internal override Type ValueType => _valueType;
 
     internal override object Materialize(Record record)

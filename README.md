@@ -307,10 +307,20 @@ agree the provider refuses to translate rather than quietly returning a differen
   LINQ helpers are known to define `Contains` as membership by default equality. A type of your own
   might define it as a range test or some other rule, so it is rejected rather than assumed. A
   dictionary is rejected too, because its `Contains` asks about a key — use `map.Keys.Contains(x)`.
-- **`Distinct` over a projection to a type without value equality.** `Select(p => new Company { ... })`
+- **`Distinct` over a projection whose equality the provider cannot prove.** `Select(p => new Company { ... })`
   produces objects that LINQ compares by reference — every row is distinct — while `RETURN DISTINCT`
-  collapses rows with equal properties. Project an anonymous type or a record, give the type value
-  equality, or project the node itself to remove duplicates by graph identity.
+  collapses rows with equal properties. Only anonymous types, records that kept their generated
+  equality, scalars and strings are accepted. A hand-written `Equals` is *not* enough, because it may
+  ignore members, compare them case-insensitively, or call everything equal.
+- **`Distinct` over a collection-valued column.** `Select(p => p.Tags).Distinct()` would compare
+  `string[]` by reference in LINQ and keep every row, while Cypher compares lists and maps by value
+  and collapses them.
+
+`Distinct` over a whole node is the one deliberate exception, and it is allowed: `RETURN DISTINCT n`
+removes duplicates by graph identity, which is exactly what makes `Distinct` useful after a traversal
+that reaches the same node twice. Materializing produces a new object per row, so an in-memory
+`Distinct` would *not* agree — the provider prefers the graph's own notion of identity here, and says
+so rather than leaving it implicit.
 
 A nested query such as `Where(p => p.Age > other.Count())` is rejected for a related reason: evaluating
 it would mean running a second query against the server mid-translation. Materialize it first.
@@ -393,7 +403,12 @@ materializer leaves an absent `age` as `0`. Two reasons:
   `Where(p => p.Age == 0)` return everyone whose age was never recorded would be worse than the
   mismatch it fixes.
 
-Mapping the property as nullable gives you the LINQ answer *and* keeps the predicate indexable.
+Mapping the property as nullable gives you the LINQ answer, and it is cheaper than the table above
+suggests. The `coalesce` only wraps the *comparison*, never the indexed property read, so it costs
+nothing on an inequality: `EXPLAIN` gives `Node By Label Scan` plus a `Filter` for both `n.age <> 5`
+and `coalesce(n.age <> 5, true)`, because an index cannot serve `<>` to begin with. And an equality
+test against a non-null constant is emitted bare as `n0.score = $p0`, which an index still serves —
+the null-safe form is only used when *both* sides can be null.
 
 ## License
 
