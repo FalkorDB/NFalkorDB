@@ -341,8 +341,8 @@ Labels, relationship types and property keys are escaped as Cypher identifiers, 
 
 FalkorDB has no `datetime()` constructor — `RETURN datetime()` answers `Unknown function 'datetime'` —
 so a date has to be stored as either a string or a number, and the provider has to pick one. It binds
-`DateTime` and `DateTimeOffset` as round-trip ISO-8601 strings (`"o"`, so `2020-01-02T03:04:05.0000000Z`)
-and `TimeSpan` as whole milliseconds:
+`DateTime` and `DateTimeOffset` as round-trip ISO-8601 strings **normalized to UTC**
+(`2020-01-02T03:04:05.0000000Z`) and `TimeSpan` as whole milliseconds:
 
 ```csharp
 context.Nodes<Person>().Where(p => p.Joined > cutoff)
@@ -350,8 +350,12 @@ context.Nodes<Person>().Where(p => p.Joined > cutoff)
 // $p0 = "2020-01-02T03:04:05.0000000Z"
 ```
 
-ISO-8601 in UTC sorts lexically in the same order it sorts chronologically, so `>`, `<` and `ORDER BY`
-all behave, and `ValueConverter` parses the string back into a `DateTime` on the way out.
+Normalizing to UTC is what makes the comparison sound. The `"o"` format renders a local `DateTime`
+with a `+02:00` suffix, an unspecified one with no suffix and a `DateTimeOffset` with whatever offset
+it carries, so three spellings of the same instant would not compare equal to each other and would
+sort by wall-clock text rather than by instant. Converted to UTC they are all the same width, so the
+lexical order is the chronological order, and `>`, `<` and `ORDER BY` all behave. A `DateTime` with
+`DateTimeKind.Unspecified` has no offset to apply and is read as UTC.
 
 **Store your dates the same way.** Cypher compares mismatched types as `false` rather than raising an
 error — `RETURN '2020-07-15' > 1600000000` answers `false` — so if a property holds epoch milliseconds

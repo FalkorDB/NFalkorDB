@@ -528,8 +528,12 @@ internal sealed class CypherExpressionBuilder
 
         var symbol = @operator == "=" ? "==" : "!=";
 
+        var mismatch = @operator == "="
+            ? "so the in-memory query would match nothing"
+            : "so the in-memory query would match every row";
+
         throw new NotSupportedException(
-            $"The operator '{symbol}' cannot be translated for the collection operand of type '{type.Name}', because C# compares it by reference -- so the in-memory query would match nothing -- while Cypher compares lists and maps by value. Compare a scalar property, or use Contains to test membership.");
+            $"The operator '{symbol}' cannot be translated for the collection operand of type '{type.Name}', because C# compares it by reference -- {mismatch} -- while Cypher compares lists and maps by value. Compare a scalar property, or use Contains to test membership.");
     }
 
     private CypherFragment RelationalComparison(Expression left, Expression right, string @operator)

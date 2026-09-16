@@ -533,12 +533,20 @@ internal sealed class QueryTranslator
     /// </remarks>
     private void GuardDistinctEquality()
     {
-        if (_projection is ObjectShape shape && !HasProvableValueEquality(shape.ResultType))
+        if (_projection is ObjectShape shape)
         {
-            var name = FriendlyName(shape.ResultType);
+            var unprovable = FindUnprovableEquality(shape);
 
-            throw new NotSupportedException(
-                $"Distinct cannot be applied to the projection '{name}', because LINQ compares '{name}' with EqualityComparer<T>.Default -- reference equality unless the type defines its own -- while RETURN DISTINCT compares the projected values, and the provider cannot prove the two agree. Project an anonymous type or a record that keeps its generated equality, or project the node itself to remove duplicates by graph identity.");
+            if (unprovable != null)
+            {
+                var name = FriendlyName(unprovable);
+                var where = ReferenceEquals(unprovable, shape.ResultType)
+                    ? $"the projection '{name}'"
+                    : $"the projection, because its nested '{name}' member";
+
+                throw new NotSupportedException(
+                    $"Distinct cannot be applied to {where}: LINQ compares it with EqualityComparer<T>.Default -- reference equality unless the type defines its own -- while RETURN DISTINCT compares the projected values, and the provider cannot prove the two agree. Project an anonymous type or a record that keeps its generated equality, or project the node itself to remove duplicates by graph identity.");
+            }
         }
 
         // Structural equality is only as good as its members: an anonymous type holding a string[]
@@ -560,6 +568,34 @@ internal sealed class QueryTranslator
             throw new NotSupportedException(
                 $"Distinct cannot be applied to the '{single.ValueType.Name}' column, because LINQ compares a collection by reference and would keep every row, while Cypher compares lists and maps by value and would collapse them. Project a scalar, or call Distinct after materializing the rows.");
         }
+    }
+
+    /// <summary>
+    /// Returns the first projected type whose equality the provider cannot prove, walking nested
+    /// fabricated objects as well as the root: an outer anonymous type has structural equality, but
+    /// that equality delegates to whatever its members define.
+    /// </summary>
+    private static Type FindUnprovableEquality(ObjectShape shape)
+    {
+        if (!HasProvableValueEquality(shape.ResultType))
+        {
+            return shape.ResultType;
+        }
+
+        foreach (var member in shape.Members)
+        {
+            if (member is ObjectShape nested)
+            {
+                var inner = FindUnprovableEquality(nested);
+
+                if (inner != null)
+                {
+                    return inner;
+                }
+            }
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -597,10 +633,30 @@ internal sealed class QueryTranslator
     private static string FriendlyName(Type type) => IsAnonymous(type) ? "anonymous type" : type.Name;
 
     private static bool HasProvableValueEquality(Type type) =>
-        type.IsValueType ||
-        type == typeof(string) ||
         IsAnonymous(type) ||
-        IsRecordWithGeneratedEquality(type);
+        IsRecordWithGeneratedEquality(type) ||
+        type == typeof(string) ||
+        (type.IsValueType && HasStructuralValueTypeEquality(type));
+
+    /// <summary>
+    /// True for a struct the CLR still compares field by field, which is what Cypher does too. A
+    /// struct that replaces <c>Equals</c> can order or ignore its fields however it likes, so only
+    /// the default behaviour and the compiler's own record struct equality are accepted.
+    /// </summary>
+    private static bool HasStructuralValueTypeEquality(Type type)
+    {
+        var equals = type.GetMethod(nameof(object.Equals), new[] { typeof(object) });
+
+        if (equals == null || equals.DeclaringType != type)
+        {
+            return true;
+        }
+
+        var typed = type.GetMethod(nameof(object.Equals), new[] { type });
+
+        return typed != null &&
+               typed.GetCustomAttributes(typeof(CompilerGeneratedAttribute), inherit: false).Length > 0;
+    }
 
     private static bool IsAnonymous(Type type) =>
         type.IsGenericType &&
@@ -761,21 +817,22 @@ internal sealed class QueryTranslator
     /// </summary>
     /// <remarks>
     /// <c>Select(p =&gt; new { p.Age }).Max()</c> renders as <c>max(n0.age)</c>, but the caller is
-    /// promised the anonymous type back, and LINQ itself would throw because the type does not
-    /// implement <see cref="IComparable"/>. The same applies to a whole node and to a collection
-    /// column, so only a type the CLR can order is accepted.
+    /// promised the anonymous type back, and LINQ itself would throw because the type has no
+    /// ordering. <see cref="IComparable"/> is not a sufficient test either: a projected type is free
+    /// to order itself by name length or in reverse, and <c>min()</c> would still apply Cypher's own
+    /// ordering. Only the scalars whose ordering both sides agree on are accepted.
     /// </remarks>
     private static void GuardComparableAggregate(Type type, string @operator)
     {
         var underlying = Nullable.GetUnderlyingType(type) ?? type;
 
-        if (underlying == typeof(object) || typeof(IComparable).IsAssignableFrom(underlying))
+        if (underlying == typeof(object) || ScalarTypes.IsScalar(underlying))
         {
             return;
         }
 
         throw new NotSupportedException(
-            $"'{@operator}' cannot be applied to the projected type '{FriendlyName(type)}', because it does not implement IComparable, so there is no ordering to take the {@operator.ToLowerInvariant()}imum of. Project a scalar, for example `.{@operator}(p => p.Age)`.");
+            $"'{@operator}' cannot be applied to the projected type '{FriendlyName(type)}', because Cypher orders values its own way and the provider cannot prove that agrees with how the CLR orders '{FriendlyName(type)}'. Project a scalar, for example `.{@operator}(p => p.Age)`.");
     }
 
     private void EnsureDefaultProjection()

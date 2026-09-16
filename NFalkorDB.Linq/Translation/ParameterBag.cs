@@ -84,9 +84,15 @@ internal sealed class ParameterBag
             case decimal _:
                 return Convert.ToDouble(value, CultureInfo.InvariantCulture);
             case DateTime dateTime:
-                return dateTime.ToString("o", CultureInfo.InvariantCulture);
+                // Every temporal value is bound as UTC so the stored strings are all the same shape
+                // and sort lexically in chronological order. Left alone, a local DateTime renders
+                // with a "+02:00" suffix and an unspecified one with no suffix at all, so the three
+                // kinds would not compare against each other. An unspecified kind is read as UTC,
+                // because there is nothing else to read it as.
+                return ToUtcText(
+                    dateTime.Kind == DateTimeKind.Local ? dateTime.ToUniversalTime() : dateTime);
             case DateTimeOffset dateTimeOffset:
-                return dateTimeOffset.ToString("o", CultureInfo.InvariantCulture);
+                return ToUtcText(dateTimeOffset.UtcDateTime);
             case TimeSpan timeSpan:
                 return (long)timeSpan.TotalMilliseconds;
             case Guid guid:
@@ -133,6 +139,13 @@ internal sealed class ParameterBag
         throw new NotSupportedException(
             $"Values of type '{value.GetType().FullName}' cannot be used as a FalkorDB query parameter.");
     }
+
+    /// <summary>
+    /// Formats an instant as a fixed-width round-trip ISO-8601 string in UTC, which is the one shape
+    /// that sorts lexically in the same order it sorts chronologically.
+    /// </summary>
+    private static string ToUtcText(DateTime value) =>
+        DateTime.SpecifyKind(value, DateTimeKind.Utc).ToString("o", CultureInfo.InvariantCulture);
 
     private static bool IsStringKeyed(Type type)
     {

@@ -78,8 +78,40 @@ public class ParameterBindingTests
 
         Assert.Equal("2020-05-17T13:45:00.0000000Z", ParameterBag.Normalize(value));
         Assert.Equal(
-            "2020-05-17T13:45:00.0000000+00:00",
+            "2020-05-17T13:45:00.0000000Z",
             ParameterBag.Normalize(new DateTimeOffset(value)));
+    }
+
+    [Fact]
+    public void Every_temporal_kind_is_bound_as_the_same_utc_shape()
+    {
+        // The stored strings are compared lexically, so they only sort chronologically if they all
+        // have one shape. Left alone, "o" renders a local DateTime with a "+02:00" suffix, an
+        // unspecified one with no suffix, and a DateTimeOffset with its original offset, so three
+        // values of the same instant would not compare equal to each other.
+        const string instant = "2020-01-02T01:04:05.0000000Z";
+
+        Assert.Equal(instant, ParameterBag.Normalize(new DateTimeOffset(2020, 1, 2, 3, 4, 5, TimeSpan.FromHours(2))));
+        Assert.Equal(instant, ParameterBag.Normalize(new DateTimeOffset(2020, 1, 2, 1, 4, 5, TimeSpan.Zero)));
+        Assert.Equal(instant, ParameterBag.Normalize(new DateTime(2020, 1, 2, 1, 4, 5, DateTimeKind.Utc)));
+        Assert.Equal(
+            instant,
+            ParameterBag.Normalize(new DateTime(2020, 1, 2, 1, 4, 5, DateTimeKind.Utc).ToLocalTime()));
+
+        // An unspecified kind has no offset to apply, so it is read as UTC rather than guessed at.
+        Assert.Equal(
+            "2020-01-02T01:04:05.0000000Z",
+            ParameterBag.Normalize(new DateTime(2020, 1, 2, 1, 4, 5, DateTimeKind.Unspecified)));
+
+        // Every value is the same width, which is what makes the lexical order chronological.
+        var texts = new[]
+        {
+            (string)ParameterBag.Normalize(new DateTimeOffset(2019, 12, 31, 23, 0, 0, TimeSpan.FromHours(-5))),
+            (string)ParameterBag.Normalize(new DateTime(2020, 1, 2, 1, 4, 5, DateTimeKind.Utc)),
+        };
+
+        Assert.Single(texts.Select(t => t.Length).Distinct());
+        Assert.True(string.CompareOrdinal(texts[0], texts[1]) < 0);
     }
 
     [Fact]

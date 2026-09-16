@@ -132,7 +132,7 @@ public class TranslationEdgeCaseTests
             () => new QueryHarness().Nodes<Person>().Select(p => new { p.Name, p.Age }).Max());
 
         Assert.Contains("'Max'", exception.Message);
-        Assert.Contains("IComparable", exception.Message);
+        Assert.Contains("anonymous type", exception.Message);
     }
 
     [Fact]
@@ -141,9 +141,16 @@ public class TranslationEdgeCaseTests
         // max(n0.age) would come back as a number while the caller was promised the anonymous type,
         // and LINQ itself throws here because the type has no ordering.
         Assert.Contains(
-            "IComparable",
+            "Person",
             Assert.Throws<NotSupportedException>(
                 () => new QueryHarness().Nodes<Person>().Min()).Message);
+
+        // IComparable is not proof of Cypher-compatible ordering: this type orders by name length
+        // while min(n0.name) would order lexically.
+        Assert.Contains(
+            nameof(OrdersByLength),
+            Assert.Throws<NotSupportedException>(
+                () => new QueryHarness().Nodes<Person>().Select(p => new OrdersByLength(p.Name)).Min()).Message);
 
         Assert.Contains(
             "String[]",
@@ -162,6 +169,10 @@ public class TranslationEdgeCaseTests
         var text = new QueryHarness();
         text.Nodes<Person>().Select(p => p.Name).Min();
         Assert.Equal("MATCH (n0:Person) RETURN min(n0.name)", text.CapturedCypher);
+
+        var moment = new QueryHarness();
+        moment.Nodes<Person>().Select(p => p.Joined).Max();
+        Assert.Equal("MATCH (n0:Person) RETURN max(n0.joined)", moment.CapturedCypher);
     }
 
     [Fact]
@@ -520,6 +531,53 @@ public class TranslationEdgeCaseTests
             "MATCH (n0:Person) WHERE NOT coalesce(n0.active AND n0.age > $p0, false) RETURN n0",
             QueryHarnessExtensions.Nodes<Person>().Where(p => !(p.Active && p.Age > 18)).Cypher());
     }
+    [Fact]
+    public void Distinct_looks_through_a_projection_to_its_nested_members()
+    {
+        // The outer anonymous type has compiler-generated equality, but that equality delegates to
+        // whatever the nested member defines, so checking only the root was not enough.
+        var message = Assert.Throws<NotSupportedException>(() =>
+            QueryHarnessExtensions.Nodes<Person>()
+                .Select(p => new { Inner = new AlwaysEqual { Name = p.Name } })
+                .Distinct()
+                .Cypher()).Message;
+
+        Assert.Contains("nested", message);
+        Assert.Contains(nameof(AlwaysEqual), message);
+
+        // A nested projection that does carry provable equality is still fine.
+        Assert.Equal(
+            "MATCH (n0:Person) RETURN DISTINCT n0.name AS Name",
+            QueryHarnessExtensions.Nodes<Person>()
+                .Select(p => new { Inner = new NameRecord(p.Name) })
+                .Distinct()
+                .Cypher());
+
+        // A record struct keeps the compiler's equality too.
+        Assert.Equal(
+            "MATCH (n0:Person) RETURN DISTINCT n0.name AS Name",
+            QueryHarnessExtensions.Nodes<Person>().Select(p => new NameRecordStruct(p.Name)).Distinct().Cypher());
+    }
+}
+
+/// <summary>A record struct, whose generated equality is structural over its fields.</summary>
+/// <param name="Name">The projected name.</param>
+public record struct NameRecordStruct(string Name);
+
+/// <summary>A type whose ordering has nothing to do with how Cypher orders the same value.</summary>
+public class OrdersByLength : IComparable
+{
+    /// <summary>Creates the wrapper.</summary>
+    /// <param name="name">The projected name.</param>
+    public OrdersByLength(string name) => Name = name;
+
+    /// <summary>The projected name.</summary>
+    public string Name { get; set; }
+
+    /// <summary>Orders by name length rather than lexically.</summary>
+    /// <param name="obj">The instance to compare with.</param>
+    /// <returns>The relative order by length.</returns>
+    public int CompareTo(object obj) => Name.Length.CompareTo(((OrdersByLength)obj).Name.Length);
 }
 
 /// <summary>A record that keeps the equality the compiler generated for it.</summary>

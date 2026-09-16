@@ -225,6 +225,16 @@ public class ValueConversionTests
         Assert.Throws<GraphMappingException>(() => Convert(1.5f, typeof(int)));
         Assert.Throws<GraphMappingException>(() => Convert(1.5m, typeof(int)));
 
+        // A decimal has to be tested in its own precision. Casting 9007199254740992.5m to a double
+        // rounds the fraction away first, so a double-based check would see a whole number and let
+        // the conversion round the original value silently.
+        var wide = 9007199254740992.5m;
+        Assert.Equal((double)wide, Math.Truncate((double)wide));
+        Assert.Throws<GraphMappingException>(() => Convert(wide, typeof(long)));
+
+        // A whole decimal that a double cannot represent exactly still narrows.
+        Assert.Equal(9007199254740993L, Convert(9007199254740993m, typeof(long)));
+
         // A whole real still narrows, because FalkorDB returns a double for avg() and for any
         // property written through a real-valued expression.
         Assert.Equal(2, Convert(2.0d, typeof(int)));

@@ -157,8 +157,15 @@ internal static class ValueConverter
                 real = f;
                 break;
             case decimal m:
-                real = (double)m;
-                break;
+                // A decimal must be tested in its own precision. Casting 9007199254740992.5m to a
+                // double rounds the fraction away first, and the truncation test below would then
+                // see a whole number and let ChangeType round the original value silently.
+                if (m == decimal.Truncate(m))
+                {
+                    return;
+                }
+
+                throw FractionLost(m.ToString(CultureInfo.InvariantCulture), targetType, context);
             default:
                 return;
         }
@@ -168,9 +175,12 @@ internal static class ValueConverter
             return;
         }
 
-        throw new GraphMappingException(
-            $"Cannot convert the value '{real.ToString(CultureInfo.InvariantCulture)}' to {targetType} for {context}, because it has a fractional part that the conversion would silently round away. Map the property as a floating point type.");
+        throw FractionLost(real.ToString(CultureInfo.InvariantCulture), targetType, context);
     }
+
+    private static GraphMappingException FractionLost(string value, Type targetType, string context) =>
+        new GraphMappingException(
+            $"Cannot convert the value '{value}' to {targetType} for {context}, because it has a fractional part that the conversion would silently round away. Map the property as a floating point type.");
 
     private static bool IsIntegral(Type type) =>
         type == typeof(byte) || type == typeof(sbyte) ||
