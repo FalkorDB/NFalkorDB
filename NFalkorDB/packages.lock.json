@@ -19,14 +19,14 @@
       },
       "StackExchange.Redis": {
         "type": "Direct",
-        "requested": "[3.0.0, )",
-        "resolved": "3.0.0",
-        "contentHash": "New/RKMZmVYFhkiS0eegY1YUnFlspcZUhoerUNLiA96rZxgTNhNc07go1CgIjU9JArdLXB4oB4PQvD0y350Aaw==",
+        "requested": "[3.2.1, )",
+        "resolved": "3.2.1",
+        "contentHash": "jIeqcfmZJ+LUBsVEs0qQ5DRJFMLT4xmV8qVKtox3CiQox6ivaU5Mo4bBs8XsPZ/wvjGUQ4TiYLvWwBTvEBSAbA==",
         "dependencies": {
           "Microsoft.Bcl.AsyncInterfaces": "10.0.5",
           "Microsoft.Extensions.Logging.Abstractions": "10.0.5",
-          "RESPite": "3.0.0",
-          "System.IO.Hashing": "10.0.5",
+          "RESPite": "3.2.1",
+          "System.IO.Hashing": "10.0.12",
           "System.IO.Pipelines": "10.0.5",
           "System.Threading.Channels": "10.0.5"
         }
@@ -66,11 +66,12 @@
       },
       "RESPite": {
         "type": "Transitive",
-        "resolved": "3.0.0",
-        "contentHash": "RLUe1U5VzdY0gZxXIFAWy8YS6ChUPpcnQkdMg5KkITaSO4YkVdK4Vvq0zsmXeqx/q5rhaIjCUgxnKH4j+6r/RA==",
+        "resolved": "3.2.1",
+        "contentHash": "xgf0teM++NNTWxlXBv91K8qKW4ULhQNcmO1/rAI/4qVFgaZdWCKD1SeImGtUnCq/orIWkke5GQ4Q40239S/utw==",
         "dependencies": {
           "Microsoft.Bcl.AsyncInterfaces": "10.0.5",
           "System.Buffers": "4.6.1",
+          "System.IO.Pipelines": "10.0.5",
           "System.Memory": "4.6.3"
         }
       },
@@ -90,8 +91,8 @@
       },
       "System.IO.Hashing": {
         "type": "Transitive",
-        "resolved": "10.0.5",
-        "contentHash": "8IBJWcCT9+e4Bmevm4T7+fQEiAh133KGiz4oiVTgJckd3Q76OFdR1falgn9lpz7+C4HJvogCDJeAa2QmvbeVtg==",
+        "resolved": "10.0.12",
+        "contentHash": "jDix4bBMYnpZdSPcnY+KDV6ik3SRMzpMKby/bZl/XUwIiflwRNAFZ0oOl61R/pSaveIJ8t1gs2BUlrGsPs/bcg==",
         "dependencies": {
           "System.Buffers": "4.6.1",
           "System.Memory": "4.6.3"
