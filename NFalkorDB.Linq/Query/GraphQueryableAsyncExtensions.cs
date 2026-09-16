@@ -36,8 +36,8 @@ public static class GraphQueryableAsyncExtensions
     /// <param name="source">The query to run.</param>
     /// <param name="cancellationToken">A token used to cancel the operation.</param>
     /// <returns>The materialized results.</returns>
-    public static async Task<T[]> ToArrayAsync<T>(this IQueryable<T> source, CancellationToken cancellationToken = default) =>
-        (await source.ToListAsync(cancellationToken).ConfigureAwait(false)).ToArray();
+    public static Task<T[]> ToArrayAsync<T>(this IQueryable<T> source, CancellationToken cancellationToken = default) =>
+        Execute<T, T[]>(source, TerminalOperator.Array, typeof(T), cancellationToken);
 
     /// <summary>Returns the first result, throwing when the query matched nothing.</summary>
     /// <typeparam name="T">The element type.</typeparam>
@@ -400,4 +400,201 @@ public static class GraphQueryableAsyncExtensions
             .RequireProvider(source)
             .ExecuteAsync<TResult>(source.Expression, terminal, resultType, cancellationToken);
     }
+
+    // The nullable and single-precision shapes of the standard LINQ aggregate surface. Without
+    // them a mapped `int?` property had no async overload at all and silently fell back to the
+    // synchronous Queryable path, which blocks the calling thread.
+
+    /// <summary>Sums the projected column.</summary>
+    /// <typeparam name="T">The element type.</typeparam>
+    /// <param name="source">The query to run.</param>
+    /// <param name="selector">The column to aggregate.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>The aggregate, or null when no row carried a value.</returns>
+    public static Task<int?> SumAsync<T>(this IQueryable<T> source, Expression<Func<T, int?>> selector, CancellationToken cancellationToken = default) =>
+        Execute<int?, int?>(Project(source, selector), TerminalOperator.Sum, typeof(int?), cancellationToken);
+
+    /// <summary>Sums an already projected query.</summary>
+    /// <param name="source">The query to run.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>The aggregate, or null when no row carried a value.</returns>
+    public static Task<int?> SumAsync(this IQueryable<int?> source, CancellationToken cancellationToken = default) =>
+        Execute<int?, int?>(source, TerminalOperator.Sum, typeof(int?), cancellationToken);
+
+    /// <summary>Sums the projected column.</summary>
+    /// <typeparam name="T">The element type.</typeparam>
+    /// <param name="source">The query to run.</param>
+    /// <param name="selector">The column to aggregate.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>The aggregate, or null when no row carried a value.</returns>
+    public static Task<long?> SumAsync<T>(this IQueryable<T> source, Expression<Func<T, long?>> selector, CancellationToken cancellationToken = default) =>
+        Execute<long?, long?>(Project(source, selector), TerminalOperator.Sum, typeof(long?), cancellationToken);
+
+    /// <summary>Sums an already projected query.</summary>
+    /// <param name="source">The query to run.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>The aggregate, or null when no row carried a value.</returns>
+    public static Task<long?> SumAsync(this IQueryable<long?> source, CancellationToken cancellationToken = default) =>
+        Execute<long?, long?>(source, TerminalOperator.Sum, typeof(long?), cancellationToken);
+
+    /// <summary>Sums the projected column.</summary>
+    /// <typeparam name="T">The element type.</typeparam>
+    /// <param name="source">The query to run.</param>
+    /// <param name="selector">The column to aggregate.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>The aggregate, or null when no row carried a value.</returns>
+    public static Task<double?> SumAsync<T>(this IQueryable<T> source, Expression<Func<T, double?>> selector, CancellationToken cancellationToken = default) =>
+        Execute<double?, double?>(Project(source, selector), TerminalOperator.Sum, typeof(double?), cancellationToken);
+
+    /// <summary>Sums an already projected query.</summary>
+    /// <param name="source">The query to run.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>The aggregate, or null when no row carried a value.</returns>
+    public static Task<double?> SumAsync(this IQueryable<double?> source, CancellationToken cancellationToken = default) =>
+        Execute<double?, double?>(source, TerminalOperator.Sum, typeof(double?), cancellationToken);
+
+    /// <summary>Sums the projected column.</summary>
+    /// <typeparam name="T">The element type.</typeparam>
+    /// <param name="source">The query to run.</param>
+    /// <param name="selector">The column to aggregate.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>The aggregate, or null when no row carried a value.</returns>
+    public static Task<decimal?> SumAsync<T>(this IQueryable<T> source, Expression<Func<T, decimal?>> selector, CancellationToken cancellationToken = default) =>
+        Execute<decimal?, decimal?>(Project(source, selector), TerminalOperator.Sum, typeof(decimal?), cancellationToken);
+
+    /// <summary>Sums an already projected query.</summary>
+    /// <param name="source">The query to run.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>The aggregate, or null when no row carried a value.</returns>
+    public static Task<decimal?> SumAsync(this IQueryable<decimal?> source, CancellationToken cancellationToken = default) =>
+        Execute<decimal?, decimal?>(source, TerminalOperator.Sum, typeof(decimal?), cancellationToken);
+
+    /// <summary>Sums the projected column.</summary>
+    /// <typeparam name="T">The element type.</typeparam>
+    /// <param name="source">The query to run.</param>
+    /// <param name="selector">The column to aggregate.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>The aggregate, or null when no row carried a value.</returns>
+    public static Task<float> SumAsync<T>(this IQueryable<T> source, Expression<Func<T, float>> selector, CancellationToken cancellationToken = default) =>
+        Execute<float, float>(Project(source, selector), TerminalOperator.Sum, typeof(float), cancellationToken);
+
+    /// <summary>Sums an already projected query.</summary>
+    /// <param name="source">The query to run.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>The aggregate, or null when no row carried a value.</returns>
+    public static Task<float> SumAsync(this IQueryable<float> source, CancellationToken cancellationToken = default) =>
+        Execute<float, float>(source, TerminalOperator.Sum, typeof(float), cancellationToken);
+
+    /// <summary>Sums the projected column.</summary>
+    /// <typeparam name="T">The element type.</typeparam>
+    /// <param name="source">The query to run.</param>
+    /// <param name="selector">The column to aggregate.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>The aggregate, or null when no row carried a value.</returns>
+    public static Task<float?> SumAsync<T>(this IQueryable<T> source, Expression<Func<T, float?>> selector, CancellationToken cancellationToken = default) =>
+        Execute<float?, float?>(Project(source, selector), TerminalOperator.Sum, typeof(float?), cancellationToken);
+
+    /// <summary>Sums an already projected query.</summary>
+    /// <param name="source">The query to run.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>The aggregate, or null when no row carried a value.</returns>
+    public static Task<float?> SumAsync(this IQueryable<float?> source, CancellationToken cancellationToken = default) =>
+        Execute<float?, float?>(source, TerminalOperator.Sum, typeof(float?), cancellationToken);
+
+    /// <summary>Averages the projected column.</summary>
+    /// <typeparam name="T">The element type.</typeparam>
+    /// <param name="source">The query to run.</param>
+    /// <param name="selector">The column to aggregate.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>The aggregate, or null when no row carried a value.</returns>
+    public static Task<double?> AverageAsync<T>(this IQueryable<T> source, Expression<Func<T, int?>> selector, CancellationToken cancellationToken = default) =>
+        Execute<int?, double?>(Project(source, selector), TerminalOperator.Average, typeof(double?), cancellationToken);
+
+    /// <summary>Averages an already projected query.</summary>
+    /// <param name="source">The query to run.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>The aggregate, or null when no row carried a value.</returns>
+    public static Task<double?> AverageAsync(this IQueryable<int?> source, CancellationToken cancellationToken = default) =>
+        Execute<int?, double?>(source, TerminalOperator.Average, typeof(double?), cancellationToken);
+
+    /// <summary>Averages the projected column.</summary>
+    /// <typeparam name="T">The element type.</typeparam>
+    /// <param name="source">The query to run.</param>
+    /// <param name="selector">The column to aggregate.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>The aggregate, or null when no row carried a value.</returns>
+    public static Task<double?> AverageAsync<T>(this IQueryable<T> source, Expression<Func<T, long?>> selector, CancellationToken cancellationToken = default) =>
+        Execute<long?, double?>(Project(source, selector), TerminalOperator.Average, typeof(double?), cancellationToken);
+
+    /// <summary>Averages an already projected query.</summary>
+    /// <param name="source">The query to run.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>The aggregate, or null when no row carried a value.</returns>
+    public static Task<double?> AverageAsync(this IQueryable<long?> source, CancellationToken cancellationToken = default) =>
+        Execute<long?, double?>(source, TerminalOperator.Average, typeof(double?), cancellationToken);
+
+    /// <summary>Averages the projected column.</summary>
+    /// <typeparam name="T">The element type.</typeparam>
+    /// <param name="source">The query to run.</param>
+    /// <param name="selector">The column to aggregate.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>The aggregate, or null when no row carried a value.</returns>
+    public static Task<double?> AverageAsync<T>(this IQueryable<T> source, Expression<Func<T, double?>> selector, CancellationToken cancellationToken = default) =>
+        Execute<double?, double?>(Project(source, selector), TerminalOperator.Average, typeof(double?), cancellationToken);
+
+    /// <summary>Averages an already projected query.</summary>
+    /// <param name="source">The query to run.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>The aggregate, or null when no row carried a value.</returns>
+    public static Task<double?> AverageAsync(this IQueryable<double?> source, CancellationToken cancellationToken = default) =>
+        Execute<double?, double?>(source, TerminalOperator.Average, typeof(double?), cancellationToken);
+
+    /// <summary>Averages the projected column.</summary>
+    /// <typeparam name="T">The element type.</typeparam>
+    /// <param name="source">The query to run.</param>
+    /// <param name="selector">The column to aggregate.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>The aggregate, or null when no row carried a value.</returns>
+    public static Task<decimal?> AverageAsync<T>(this IQueryable<T> source, Expression<Func<T, decimal?>> selector, CancellationToken cancellationToken = default) =>
+        Execute<decimal?, decimal?>(Project(source, selector), TerminalOperator.Average, typeof(decimal?), cancellationToken);
+
+    /// <summary>Averages an already projected query.</summary>
+    /// <param name="source">The query to run.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>The aggregate, or null when no row carried a value.</returns>
+    public static Task<decimal?> AverageAsync(this IQueryable<decimal?> source, CancellationToken cancellationToken = default) =>
+        Execute<decimal?, decimal?>(source, TerminalOperator.Average, typeof(decimal?), cancellationToken);
+
+    /// <summary>Averages the projected column.</summary>
+    /// <typeparam name="T">The element type.</typeparam>
+    /// <param name="source">The query to run.</param>
+    /// <param name="selector">The column to aggregate.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>The aggregate, or null when no row carried a value.</returns>
+    public static Task<float> AverageAsync<T>(this IQueryable<T> source, Expression<Func<T, float>> selector, CancellationToken cancellationToken = default) =>
+        Execute<float, float>(Project(source, selector), TerminalOperator.Average, typeof(float), cancellationToken);
+
+    /// <summary>Averages an already projected query.</summary>
+    /// <param name="source">The query to run.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>The aggregate, or null when no row carried a value.</returns>
+    public static Task<float> AverageAsync(this IQueryable<float> source, CancellationToken cancellationToken = default) =>
+        Execute<float, float>(source, TerminalOperator.Average, typeof(float), cancellationToken);
+
+    /// <summary>Averages the projected column.</summary>
+    /// <typeparam name="T">The element type.</typeparam>
+    /// <param name="source">The query to run.</param>
+    /// <param name="selector">The column to aggregate.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>The aggregate, or null when no row carried a value.</returns>
+    public static Task<float?> AverageAsync<T>(this IQueryable<T> source, Expression<Func<T, float?>> selector, CancellationToken cancellationToken = default) =>
+        Execute<float?, float?>(Project(source, selector), TerminalOperator.Average, typeof(float?), cancellationToken);
+
+    /// <summary>Averages an already projected query.</summary>
+    /// <param name="source">The query to run.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>The aggregate, or null when no row carried a value.</returns>
+    public static Task<float?> AverageAsync(this IQueryable<float?> source, CancellationToken cancellationToken = default) =>
+        Execute<float?, float?>(source, TerminalOperator.Average, typeof(float?), cancellationToken);
+
 }

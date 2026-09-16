@@ -19,6 +19,9 @@ internal static class ResultAssembler
             case TerminalOperator.Sequence:
                 return AssembleSequence(compiled, resultSet);
 
+            case TerminalOperator.Array:
+                return AssembleArray(compiled, resultSet);
+
             case TerminalOperator.First:
             case TerminalOperator.FirstOrDefault:
             case TerminalOperator.Single:
@@ -30,10 +33,37 @@ internal static class ResultAssembler
         }
     }
 
+    /// <summary>
+    /// Materializes straight into a right-sized array.
+    /// </summary>
+    /// <remarks>
+    /// The result set knows its own row count, so the array is allocated once and filled in place.
+    /// Going through a list and copying it held both buffers at once at peak.
+    /// </remarks>
+    private static object AssembleArray(CompiledQuery compiled, ResultSet resultSet)
+    {
+        var elementType = compiled.Projection.ResultType;
+        var results = System.Array.CreateInstance(elementType, resultSet?.Count ?? 0);
+
+        if (resultSet != null)
+        {
+            var index = 0;
+
+            foreach (var record in resultSet)
+            {
+                results.SetValue(compiled.Projection.Materialize(record), index++);
+            }
+        }
+
+        return results;
+    }
+
     private static object AssembleSequence(CompiledQuery compiled, ResultSet resultSet)
     {
         var elementType = compiled.Projection.ResultType;
-        var results = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(elementType));
+        // Sizing from the row count up front avoids the list growing by repeated doubling.
+        var results = (IList)Activator.CreateInstance(
+            typeof(List<>).MakeGenericType(elementType), resultSet?.Count ?? 0);
 
         if (resultSet != null)
         {

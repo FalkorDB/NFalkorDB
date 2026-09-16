@@ -118,18 +118,27 @@ internal static class CypherQueryRenderer
         AppendSkipLimit(cypher, model);
     }
 
+    /// <summary>
+    /// Renders SKIP and LIMIT, preferring the bound placeholder when the count came from a caller.
+    /// </summary>
+    /// <remarks>
+    /// Binding the caller's counts keeps one plan in FalkorDB's query cache for every page of a
+    /// paged read; rendering them as literals produced a distinct query string, and so a distinct
+    /// cache entry, per page. A terminal operator's own row limit is part of the query's shape
+    /// rather than a caller value, so it stays a literal.
+    /// </remarks>
     private static void AppendSkipLimit(StringBuilder cypher, CypherQueryModel model)
     {
         if (model.Skip.HasValue)
         {
             cypher.Append(" SKIP ");
-            cypher.Append(model.Skip.Value.ToString(CultureInfo.InvariantCulture));
+            cypher.Append(model.SkipParameter ?? model.Skip.Value.ToString(CultureInfo.InvariantCulture));
         }
 
         if (model.Limit.HasValue)
         {
             cypher.Append(" LIMIT ");
-            cypher.Append(model.Limit.Value.ToString(CultureInfo.InvariantCulture));
+            cypher.Append(model.LimitParameter ?? model.Limit.Value.ToString(CultureInfo.InvariantCulture));
         }
     }
 

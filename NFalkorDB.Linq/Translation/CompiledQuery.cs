@@ -16,6 +16,9 @@ internal enum TerminalOperator
     /// <summary>Return every matching row.</summary>
     Sequence,
 
+    /// <summary>Return every matching row as an array, sized from the result set.</summary>
+    Array,
+
     /// <summary>Return the first row, throwing when there is none.</summary>
     First,
 

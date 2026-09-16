@@ -44,6 +44,17 @@ internal static class ScalarTypes
     }
 
     /// <summary>
+    /// True for a scalar the CLR can also sort.
+    /// </summary>
+    /// <remarks>
+    /// Storable and orderable are not the same set. A <see cref="Point"/> is a perfectly good
+    /// property value, but it is a record with no <see cref="IComparable"/>, so
+    /// <c>Comparer&lt;Point&gt;.Default</c> throws. Cypher will happily order one, so ordering by a
+    /// point returned rows in an arbitrary order where LINQ raised an error.
+    /// </remarks>
+    internal static bool IsOrderable(Type type) => IsScalar(type) && Unwrap(type) != typeof(Point);
+
+    /// <summary>
     /// True for a scalar, or for a collection/map whose elements are themselves scalars.
     /// </summary>
     internal static bool IsStorable(Type type)

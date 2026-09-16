@@ -385,6 +385,8 @@ internal sealed class CypherExpressionBuilder
                 // always uses default equality, so translating it would change the result.
                 RejectNonDefaultComparer(call.Object, call.Method.Name);
 
+                RejectNullCollection(call.Object, call.Method.Name);
+
                 return new CypherFragment(
                     Render(Visit(call.Arguments[0]), PrecedenceComparison) + " IN " + Render(Visit(call.Object), PrecedenceComparison),
                     PrecedenceComparison);
@@ -394,6 +396,14 @@ internal sealed class CypherExpressionBuilder
                 call.Arguments[0].Type != typeof(string))
             {
                 RejectUnrecognizedContains(call);
+
+                // Deliberately checked before the span conversion is stripped. `Enumerable.Contains`
+                // throws on a null source, so translating it to `IN null` -- which matches nothing --
+                // would turn an error into a wrong answer. The `MemoryExtensions` binding the C#
+                // compiler picks for a null array on newer runtimes converts it to an empty span and
+                // returns false instead, which `IN null` already agrees with, so that shape stays
+                // wrapped in a Call node here and is correctly left alone.
+                RejectNullCollection(call.Arguments[0], call.Method.Name);
 
                 // .NET 10 binds `array.Contains(x)` to the MemoryExtensions overload that also takes
                 // an equality comparer when the element type does not implement IEquatable<T>, which
@@ -768,6 +778,29 @@ internal sealed class CypherExpressionBuilder
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Rejects membership against a collection that folded to null.
+    /// </summary>
+    /// <remarks>
+    /// Cypher's <c>x IN null</c> is null, so the row is dropped and the query quietly returns
+    /// nothing. In LINQ the same call throws, so returning an empty result would turn a bug in the
+    /// caller's code into a plausible-looking answer.
+    /// </remarks>
+    /// <summary>
+    /// Rejects a `Contains` whose collection folded to a literal null, for the bindings where the
+    /// CLR would have thrown.
+    /// </summary>
+    private static void RejectNullCollection(Expression source, string methodName)
+    {
+        if (!(Unwrap(source) is ConstantExpression constant) || constant.Value != null)
+        {
+            return;
+        }
+
+        throw new NotSupportedException(
+            $"'{methodName}' cannot be translated when the collection is null, because Cypher's IN would return no rows while LINQ throws. Check the collection for null before building the query.");
     }
 
     private static bool IsComparer(Type type) =>

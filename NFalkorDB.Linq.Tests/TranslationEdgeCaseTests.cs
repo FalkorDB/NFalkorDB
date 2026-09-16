@@ -43,7 +43,7 @@ public class TranslationEdgeCaseTests
             .Count();
 
         Assert.Equal(
-            "MATCH (n0:Collide) WITH n0.name AS o0, n0.age AS o1 ORDER BY o1 ASC LIMIT 3 RETURN count(*)",
+            "MATCH (n0:Collide) WITH n0.name AS o0, n0.age AS o1 ORDER BY o1 ASC LIMIT $p0 RETURN count(*)",
             harness.CapturedCypher);
     }
 
@@ -61,7 +61,7 @@ public class TranslationEdgeCaseTests
             .Count();
 
         Assert.Equal(
-            "MATCH (n0:Collide) WITH n0.name AS n0, n0.age AS o0 ORDER BY o0 ASC LIMIT 3 RETURN count(*)",
+            "MATCH (n0:Collide) WITH n0.name AS n0, n0.age AS o0 ORDER BY o0 ASC LIMIT $p0 RETURN count(*)",
             harness.CapturedCypher);
     }
 
@@ -73,7 +73,7 @@ public class TranslationEdgeCaseTests
         harness.Nodes<Person>().OrderBy(p => p.Age).Take(3).Count();
 
         Assert.Equal(
-            "MATCH (n0:Person) WITH n0 ORDER BY n0.age ASC LIMIT 3 RETURN count(*)",
+            "MATCH (n0:Person) WITH n0 ORDER BY n0.age ASC LIMIT $p0 RETURN count(*)",
             harness.CapturedCypher);
     }
 
@@ -289,7 +289,7 @@ public class TranslationEdgeCaseTests
             .Take(3)
             .Cypher();
 
-        Assert.Equal("MATCH (n0:Person) RETURN n0.name AS c1, n0.age AS c2 LIMIT 3", cypher);
+        Assert.Equal("MATCH (n0:Person) RETURN n0.name AS c1, n0.age AS c2 LIMIT $p0", cypher);
     }
 
     [Fact]
@@ -685,6 +685,157 @@ public class TranslationEdgeCaseTests
             "MATCH (n0:Person) WHERE n0.name IN $p0 RETURN n0",
             QueryHarnessExtensions.Nodes<Person>().Where(p => names.Distinct().Contains(p.Name)).Cypher());
     }
+
+    // ------------------------------------------------------------------ paging
+
+    [Fact]
+    public void Caller_supplied_paging_counts_are_parameters_but_operator_limits_are_not()
+    {
+        // Two pages of the same query must produce one cached plan, not one per offset.
+        var first = QueryHarnessExtensions.Nodes<Person>().Skip(0).Take(25).ToCypherQuery();
+        var second = QueryHarnessExtensions.Nodes<Person>().Skip(25).Take(25).ToCypherQuery();
+
+        Assert.Equal("MATCH (n0:Person) RETURN n0 SKIP $p0 LIMIT $p1", first.Cypher);
+        Assert.Equal(first.Cypher, second.Cypher);
+        Assert.Equal(0L, first.Parameters["p0"]);
+        Assert.Equal(25L, second.Parameters["p0"]);
+
+        // The LIMIT that `First`/`Single` add is the provider's own, not a caller value, so it
+        // stays literal -- binding it would only add a parameter that never varies.
+        var harness = new QueryHarness();
+        try
+        {
+            harness.Nodes<Person>().First();
+        }
+        catch (InvalidOperationException)
+        {
+        }
+
+        Assert.Equal("MATCH (n0:Person) RETURN n0 LIMIT 1", harness.CapturedCypher);
+        Assert.Empty(harness.CapturedParameters);
+    }
+
+    // --------------------------------------------------------------- ordering
+
+    [Fact]
+    public void An_order_by_that_carries_a_clr_comparer_is_rejected()
+    {
+        // The comparer runs in the CLR; Cypher sorts on the server and never sees it. Accepting
+        // the overload would silently order by the server's rules instead.
+        var error = Assert.Throws<NotSupportedException>(
+            () => QueryHarnessExtensions.Nodes<Person>().OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase).Cypher());
+
+        Assert.Contains("IComparer", error.Message);
+
+        Assert.Throws<NotSupportedException>(
+            () => QueryHarnessExtensions.Nodes<Person>().OrderByDescending(p => p.Name, StringComparer.Ordinal).Cypher());
+        Assert.Throws<NotSupportedException>(
+            () => QueryHarnessExtensions.Nodes<Person>().OrderBy(p => p.Age).ThenBy(p => p.Name, StringComparer.Ordinal).Cypher());
+        Assert.Throws<NotSupportedException>(
+            () => QueryHarnessExtensions.Nodes<Person>().OrderBy(p => p.Age).ThenByDescending(p => p.Name, StringComparer.Ordinal).Cypher());
+
+        // The ordinary overloads are untouched.
+        Assert.Equal(
+            "MATCH (n0:Person) RETURN n0 ORDER BY n0.name ASC",
+            QueryHarnessExtensions.Nodes<Person>().OrderBy(p => p.Name).Cypher());
+    }
+
+    [Fact]
+    public void A_sort_key_the_clr_cannot_order_is_rejected()
+    {
+        // `Comparer<Point>.Default` throws, so in-memory LINQ fails outright. Cypher will order a
+        // point quite happily, so without this guard the same query silently succeeded.
+        var error = Assert.Throws<NotSupportedException>(
+            () => QueryHarnessExtensions.Nodes<Surveyed>().OrderBy(p => p.Spot).Cypher());
+
+        Assert.Contains("Point", error.Message);
+
+        Assert.Throws<NotSupportedException>(
+            () => QueryHarnessExtensions.Nodes<Person>().OrderBy(p => p.Tags).Cypher());
+
+        // Min/Max share the rule, since they are just ordering with the rows thrown away.
+        var harness = new QueryHarness();
+        Assert.Throws<NotSupportedException>(() => harness.Nodes<Surveyed>().Max(p => p.Spot));
+
+        // Everything the CLR can sort still translates.
+        Assert.Equal(
+            "MATCH (n0:Person) RETURN n0 ORDER BY n0.joined ASC, n0.score DESC",
+            QueryHarnessExtensions.Nodes<Person>().OrderBy(p => p.Joined).ThenByDescending(p => p.Score).Cypher());
+    }
+
+    // ---------------------------------------------------------------- values
+
+    [Fact]
+    public void A_timespan_that_would_lose_precision_is_rejected()
+    {
+        // Durations go over the wire as whole milliseconds, so a sub-millisecond value would have
+        // been truncated to a different duration and matched the wrong rows.
+        var oneTick = TimeSpan.FromTicks(1);
+        var error = Assert.Throws<NotSupportedException>(
+            () => QueryHarnessExtensions.Nodes<Surveyed>().Where(p => p.Elapsed > oneTick).Cypher());
+
+        Assert.Contains("millisecond", error.Message);
+
+        var halfMillisecond = TimeSpan.FromTicks(TimeSpan.TicksPerMillisecond / 2);
+        Assert.Throws<NotSupportedException>(
+            () => QueryHarnessExtensions.Nodes<Surveyed>().Where(p => p.Elapsed > halfMillisecond).Cypher());
+
+        // Whole milliseconds are unaffected, including values far past int range.
+        var exact = QueryHarnessExtensions.Nodes<Surveyed>()
+            .Where(p => p.Elapsed > TimeSpan.FromMilliseconds(5))
+            .ToCypherQuery();
+        Assert.Equal(5L, exact.Parameters["p0"]);
+
+        var day = QueryHarnessExtensions.Nodes<Surveyed>()
+            .Where(p => p.Elapsed > TimeSpan.FromDays(1))
+            .ToCypherQuery();
+        Assert.Equal(86_400_000L, day.Parameters["p0"]);
+    }
+
+    [Fact]
+    public void Contains_over_a_null_collection_is_rejected()
+    {
+        // `IN null` matches nothing in Cypher, but these bindings throw in the CLR, so translating
+        // them would turn an error into a wrong answer.
+        List<string> missingList = null;
+        var error = Assert.Throws<NotSupportedException>(
+            () => QueryHarnessExtensions.Nodes<Person>().Where(p => missingList.Contains(p.Name)).Cypher());
+
+        Assert.Contains("null", error.Message);
+
+        IEnumerable<string> missingSequence = null;
+        Assert.Throws<NotSupportedException>(
+            () => QueryHarnessExtensions.Nodes<Person>().Where(p => missingSequence.Contains(p.Name)).Cypher());
+
+        // A null array is the one shape that is not an error: the compiler binds it to the
+        // MemoryExtensions overload, which reads it as an empty span and returns false, and `IN null`
+        // already matches nothing. Rejecting it would refuse a query the CLR answers happily.
+        string[] missingArray = null;
+        Assert.False(missingArray.Contains("Alice"));
+        var nullArray = QueryHarnessExtensions.Nodes<Person>().Where(p => missingArray.Contains(p.Name)).ToCypherQuery();
+        Assert.Equal("MATCH (n0:Person) WHERE n0.name IN $p0 RETURN n0", nullArray.Cypher);
+        Assert.Null(nullArray.Parameters["p0"]);
+
+        // An empty collection is a real, answerable query and still translates.
+        Assert.Equal(
+            "MATCH (n0:Person) WHERE n0.name IN $p0 RETURN n0",
+            QueryHarnessExtensions.Nodes<Person>().Where(p => new List<string>().Contains(p.Name)).Cypher());
+    }
+}
+
+/// <summary>A node with property types that are storable but not sortable.</summary>
+[Node("Person")]
+public class Surveyed
+{
+    /// <summary>The internal entity id.</summary>
+    [GraphId]
+    public int Id { get; set; }
+
+    /// <summary>A point, which FalkorDB can store and order but the CLR cannot compare.</summary>
+    public Point Spot { get; set; }
+
+    /// <summary>A duration, stored as whole milliseconds.</summary>
+    public TimeSpan Elapsed { get; set; }
 }
 
 /// <summary>A record struct, whose generated equality is structural over its fields.</summary>

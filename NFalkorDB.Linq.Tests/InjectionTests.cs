@@ -116,13 +116,17 @@ public class InjectionTests
         // Only identifiers the provider itself generated may appear in the text.
         Assert.Equal(
             "MATCH (n0:Person) WHERE n0.name = $p0 AND n0.age > $p1 AND n0.nickname STARTS WITH $p2 " +
-            "RETURN n0 ORDER BY n0.name ASC SKIP 1 LIMIT 2",
+            "RETURN n0 ORDER BY n0.name ASC SKIP $p3 LIMIT $p4",
             query.Cypher);
 
-        Assert.Equal(3, query.Parameters.Count);
+        Assert.Equal(5, query.Parameters.Count);
         Assert.Equal(hostile, query.Parameters["p0"]);
         Assert.Equal(1L, query.Parameters["p1"]);
         Assert.Equal(hostile, query.Parameters["p2"]);
         Assert.NotEqual(hostileNumber, query.Parameters["p1"]);
+
+        // Paging counts are bound too, so no caller-supplied number reaches the text either.
+        Assert.Equal(1L, query.Parameters["p3"]);
+        Assert.Equal(2L, query.Parameters["p4"]);
     }
 }

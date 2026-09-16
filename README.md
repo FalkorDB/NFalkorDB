@@ -289,12 +289,52 @@ the parameters dictionary that `FalkorDBUtilities.PrepareQuery` renders as a `CY
 Values are **never** concatenated into the Cypher text, so hostile input such as
 `" OR 1=1 --` is matched as a literal string rather than changing the query.
 
+This includes the counts you pass to `Skip` and `Take`, which are bound as parameters too:
+
+```csharp
+context.Nodes<Person>().Skip(page * 25).Take(25);
+// MATCH (n0:Person) RETURN n0 SKIP $p0 LIMIT $p1
+```
+
+Every page therefore sends the same query text and reuses one cached plan, where an offset written
+into the text would compile a new plan per page. The `LIMIT` that `First`, `FirstOrDefault`,
+`Single` and `SingleOrDefault` add is the provider's own and never varies, so it stays literal.
+
 ### Ordering rule
 
 `Where` and `OrderBy` must come before `Select`, and before `Skip`/`Take`/`Distinct`, so the sort and
-filter keys can be translated against the matched entity. `Distinct` must come *after* `Select`,
-because `RETURN DISTINCT` would otherwise remove duplicates from the projected values rather than
-from the matched rows. Reordering them throws a `NotSupportedException` explaining what to do instead.
+filter keys can be translated against the matched entity. Reordering them throws a
+`NotSupportedException` explaining what to do instead.
+
+`Distinct` works in two places, and they mean different things:
+
+```csharp
+context.Nodes<Person>().Distinct();                    // MATCH (n0:Person) RETURN DISTINCT n0
+context.Nodes<Person>().Select(p => p.Name).Distinct(); // MATCH (n0:Person) RETURN DISTINCT n0.name
+```
+
+On a whole entity it removes duplicates by node identity, which is already unique per row, so it is
+a no-op you may keep for symmetry with other providers. After a `Select` it removes duplicate
+projected values, which is the form that actually drops rows. Because the two are not
+interchangeable, the provider only accepts `Distinct` on a projection whose CLR equality it can
+prove matches the one Cypher applies — anonymous types, records, strings and value types that do
+not override `Equals` — and rejects the rest rather than returning rows LINQ would have collapsed.
+
+### Sort keys
+
+A sort key has to be something both FalkorDB and the CLR can order the same way, so two shapes are
+rejected:
+
+```csharp
+context.Nodes<Person>().OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase); // NotSupportedException
+context.Nodes<Survey>().OrderBy(s => s.Location);                               // NotSupportedException
+```
+
+The `IComparer` overloads are rejected because the comparer is CLR code and the sort happens on the
+server, so it could never run — accepting them would silently order by the rules Cypher applies
+rather than the ones the comparer defines. A `Point` is rejected because `Comparer<Point>.Default` throws, so in-memory LINQ refuses
+the query outright while Cypher would return rows in an order the CLR never defined. `Min` and `Max`
+apply the same rule, since they are ordering with the rows discarded.
 
 ### Caller-supplied defaults
 
@@ -368,6 +408,10 @@ it carries, so three spellings of the same instant would not compare equal to ea
 sort by wall-clock text rather than by instant. Converted to UTC they are all the same width, so the
 lexical order is the chronological order, and `>`, `<` and `ORDER BY` all behave. A `DateTime` with
 `DateTimeKind.Unspecified` has no offset to apply and is read as UTC.
+
+`TimeSpan` is stored as whole milliseconds, so a value carrying sub-millisecond precision is
+rejected rather than truncated — `TimeSpan.FromTicks(1)` would otherwise have been written as `0` and
+matched a different set of rows. Round the value yourself if that precision is not meaningful.
 
 **Store your dates the same way.** Cypher compares mismatched types as `false` rather than raising an
 error — `RETURN '2020-07-15' > 1600000000` answers `false` — so if a property holds epoch milliseconds

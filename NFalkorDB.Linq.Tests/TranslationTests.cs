@@ -386,9 +386,9 @@ public class TranslationTests
     [Fact]
     public void Skip_and_take_become_skip_and_limit()
     {
-        AssertQuery(Nodes<Person>().Skip(5), "MATCH (n0:Person) RETURN n0 SKIP 5");
-        AssertQuery(Nodes<Person>().Take(10), "MATCH (n0:Person) RETURN n0 LIMIT 10");
-        AssertQuery(Nodes<Person>().Skip(5).Take(10), "MATCH (n0:Person) RETURN n0 SKIP 5 LIMIT 10");
+        AssertQuery(Nodes<Person>().Skip(5), "MATCH (n0:Person) RETURN n0 SKIP $p0", 5L);
+        AssertQuery(Nodes<Person>().Take(10), "MATCH (n0:Person) RETURN n0 LIMIT $p0", 10L);
+        AssertQuery(Nodes<Person>().Skip(5).Take(10), "MATCH (n0:Person) RETURN n0 SKIP $p0 LIMIT $p1", 5L, 10L);
     }
 
     [Fact]
@@ -402,8 +402,8 @@ public class TranslationTests
     {
         AssertQuery(
             Nodes<Person>().Where(p => p.Age > 30).OrderBy(p => p.Name).Skip(1).Take(2),
-            "MATCH (n0:Person) WHERE n0.age > $p0 RETURN n0 ORDER BY n0.name ASC SKIP 1 LIMIT 2",
-            30L);
+            "MATCH (n0:Person) WHERE n0.age > $p0 RETURN n0 ORDER BY n0.name ASC SKIP $p1 LIMIT $p2",
+            30L, 1L, 2L);
     }
 
     // -------------------------------------------------------------- traversal
@@ -563,7 +563,7 @@ public class TranslationTests
     [Fact]
     public void An_aggregate_over_a_paged_query_uses_a_with_clause()
     {
-        AssertTerminal(h => h.Nodes<Person>().Take(5).Count(), "MATCH (n0:Person) WITH n0 LIMIT 5 RETURN count(*)");
+        AssertTerminal(h => h.Nodes<Person>().Take(5).Count(), "MATCH (n0:Person) WITH n0 LIMIT $p0 RETURN count(*)", 5L);
 
         AssertTerminal(
             h => h.Nodes<Person>().Select(p => p.Name).Distinct().Count(),
@@ -575,7 +575,7 @@ public class TranslationTests
     {
         AssertTerminal(
             h => h.Nodes<Person>().OrderBy(p => p.Age).Take(3).Select(p => p.Age).Sum(),
-            "MATCH (n0:Person) WITH n0.age AS c0 ORDER BY c0 ASC LIMIT 3 RETURN sum(c0)");
+            "MATCH (n0:Person) WITH n0.age AS c0 ORDER BY c0 ASC LIMIT $p0 RETURN sum(c0)", 3L);
     }
 
     [Fact]
@@ -583,7 +583,7 @@ public class TranslationTests
     {
         AssertTerminal(
             h => h.Nodes<Person>().OrderBy(p => p.Name).Take(3).Count(),
-            "MATCH (n0:Person) WITH n0 ORDER BY n0.name ASC LIMIT 3 RETURN count(*)");
+            "MATCH (n0:Person) WITH n0 ORDER BY n0.name ASC LIMIT $p0 RETURN count(*)", 3L);
     }
 
     [Fact]

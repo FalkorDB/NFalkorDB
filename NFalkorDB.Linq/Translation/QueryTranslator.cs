@@ -71,12 +71,31 @@ internal sealed class QueryTranslator
             EnsureDefaultProjection();
         }
 
+        BindPagingParameters();
+
         return new CompiledQuery(
             CypherQueryRenderer.Render(_model),
             _parameters.Values,
             _projection,
             _terminal,
             _resultType);
+    }
+
+    /// <summary>
+    /// Binds the caller's paging counts once the model is final, so composing Skip/Take does not
+    /// leave a parameter behind for every intermediate value.
+    /// </summary>
+    private void BindPagingParameters()
+    {
+        if (_model.SkipFromCaller && _model.Skip.HasValue)
+        {
+            _model.SkipParameter = _parameters.Add(_model.Skip.Value);
+        }
+
+        if (_model.LimitFromCaller && _model.Limit.HasValue)
+        {
+            _model.LimitParameter = _parameters.Add(_model.Limit.Value);
+        }
     }
 
     private void Visit(Expression expression)
@@ -129,18 +148,22 @@ internal sealed class QueryTranslator
                 return;
 
             case nameof(Queryable.OrderBy):
+                RejectComparerOverload(call);
                 ApplyOrderBy(GetUnaryLambda(call, 1), descending: false, reset: true);
                 return;
 
             case nameof(Queryable.OrderByDescending):
+                RejectComparerOverload(call);
                 ApplyOrderBy(GetUnaryLambda(call, 1), descending: true, reset: true);
                 return;
 
             case nameof(Queryable.ThenBy):
+                RejectComparerOverload(call);
                 ApplyOrderBy(GetUnaryLambda(call, 1), descending: false, reset: false);
                 return;
 
             case nameof(Queryable.ThenByDescending):
+                RejectComparerOverload(call);
                 ApplyOrderBy(GetUnaryLambda(call, 1), descending: true, reset: false);
                 return;
 
@@ -446,6 +469,12 @@ internal sealed class QueryTranslator
         var bindings = BindCurrent(keySelector.Parameters[0]);
         var expression = new CypherExpressionBuilder(_parameters, bindings).Translate(keySelector.Body);
 
+        // Cypher will order anything, including a point or a list. The CLR will not, so a sort key
+        // it cannot compare has to be refused rather than silently ordered some other way.
+        GuardComparableAggregate(
+            UnwrapProjection(keySelector.Body).Type,
+            descending ? "OrderByDescending" : "OrderBy");
+
         // Boxing is stripped before the guard: the expression builder also strips it, so
         // `OrderBy(p => (object)p.Rating)` would otherwise order by the stored member name while
         // the key type reads as object.
@@ -494,13 +523,15 @@ internal sealed class QueryTranslator
         }
 
         _model.Skip = (_model.Skip ?? 0) + count;
+        _model.SkipFromCaller = true;
     }
 
-    private void ApplyTake(long count)
+    private void ApplyTake(long count, bool fromCaller = true)
     {
         count = Math.Max(0, count);
 
         _model.Limit = _model.Limit.HasValue ? Math.Min(_model.Limit.Value, count) : count;
+        _model.LimitFromCaller |= fromCaller;
     }
 
     private void ApplyDistinct()
@@ -745,17 +776,18 @@ internal sealed class QueryTranslator
         switch (terminal)
         {
             case TerminalOperator.Sequence:
+            case TerminalOperator.Array:
                 break;
 
             case TerminalOperator.First:
             case TerminalOperator.FirstOrDefault:
-                ApplyTake(1);
+                ApplyTake(1, fromCaller: false);
                 break;
 
             case TerminalOperator.Single:
             case TerminalOperator.SingleOrDefault:
                 // Two rows is enough to detect the "more than one" case.
-                ApplyTake(2);
+                ApplyTake(2, fromCaller: false);
                 break;
 
             case TerminalOperator.Any:
@@ -879,17 +911,36 @@ internal sealed class QueryTranslator
     /// to order itself by name length or in reverse, and <c>min()</c> would still apply Cypher's own
     /// ordering. Only the scalars whose ordering both sides agree on are accepted.
     /// </remarks>
-    private static void GuardComparableAggregate(Type type, string @operator)
+    /// <summary>
+    /// Rejects the ordering overloads that carry an <see cref="IComparer{T}"/>.
+    /// </summary>
+    /// <remarks>
+    /// These match by name and were then read as if only a key selector had been passed, so the
+    /// comparer was dropped and `OrderBy(p =&gt; p.Name, StringComparer.OrdinalIgnoreCase)` produced
+    /// the same plain, case-sensitive ordering as the single-argument overload.
+    /// </remarks>
+    private static void RejectComparerOverload(MethodCallExpression call)
     {
-        var underlying = Nullable.GetUnderlyingType(type) ?? type;
-
-        if (underlying == typeof(object) || ScalarTypes.IsScalar(underlying))
+        if (call.Arguments.Count < 3)
         {
             return;
         }
 
         throw new NotSupportedException(
-            $"'{@operator}' cannot be applied to the projected type '{FriendlyName(type)}', because Cypher orders values its own way and the provider cannot prove that agrees with how the CLR orders '{FriendlyName(type)}'. Project a scalar, for example `.{@operator}(p => p.Age)`.");
+            $"The '{call.Method.Name}' overload that takes an IComparer is not supported, because Cypher orders values server side and cannot apply a CLR comparer. Order by a key that already sorts the way you want, for example `.{call.Method.Name}(p => p.Name.ToLower())`.");
+    }
+
+    private static void GuardComparableAggregate(Type type, string @operator)
+    {
+        var underlying = Nullable.GetUnderlyingType(type) ?? type;
+
+        if (underlying == typeof(object) || ScalarTypes.IsOrderable(underlying))
+        {
+            return;
+        }
+
+        throw new NotSupportedException(
+            $"'{@operator}' cannot be applied to '{FriendlyName(type)}', because Cypher orders values its own way and the CLR cannot order '{FriendlyName(type)}' at all. Use a key the CLR can sort, for example `.{@operator}(p => p.Age)`.");
     }
 
     private void EnsureDefaultProjection()

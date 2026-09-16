@@ -96,6 +96,11 @@ public class GraphQueryProvider : IQueryProvider
         cancellationToken.ThrowIfCancellationRequested();
 
         var compiled = QueryTranslator.Translate(expression, terminal, resultType);
+
+        // Translation is synchronous work between the check above and the command going out, so the
+        // token is read again to honour the documented promise that nothing is sent once cancelled.
+        cancellationToken.ThrowIfCancellationRequested();
+
         var result = await ExecuteCompiledAsync(compiled, cancellationToken).ConfigureAwait(false);
 
         return (TResult)result;

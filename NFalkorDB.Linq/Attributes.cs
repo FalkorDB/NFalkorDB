@@ -6,7 +6,7 @@ namespace NFalkorDB.Linq;
 /// Marks a CLR type as a graph node and declares the label(s) it is stored under.
 /// When the attribute is absent the CLR type name is used as the single label.
 /// </summary>
-[AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, AllowMultiple = false, Inherited = true)]
+[AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = true)]
 public sealed class NodeAttribute : Attribute
 {
     /// <summary>
@@ -42,7 +42,7 @@ public sealed class NodeAttribute : Attribute
 /// (a navigation property). When applied to a type and no name is given, the CLR type name is
 /// used as the relationship type.
 /// </summary>
-[AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Property, AllowMultiple = false, Inherited = true)]
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Property, AllowMultiple = false, Inherited = true)]
 public sealed class RelationshipAttribute : Attribute
 {
     /// <summary>

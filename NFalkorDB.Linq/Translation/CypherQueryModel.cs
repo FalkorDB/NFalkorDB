@@ -97,6 +97,21 @@ internal sealed class CypherQueryModel
     internal long? Limit { get; set; }
 
     /// <summary>
+    /// Set when the count came from a caller's <c>Skip</c>/<c>Take</c> rather than from a terminal
+    /// operator's own row limit, so only caller values are bound as parameters.
+    /// </summary>
+    internal bool SkipFromCaller { get; set; }
+
+    /// <inheritdoc cref="SkipFromCaller"/>
+    internal bool LimitFromCaller { get; set; }
+
+    /// <summary>The placeholder a caller-supplied <c>SKIP</c> is bound to, if any.</summary>
+    internal string SkipParameter { get; set; }
+
+    /// <inheritdoc cref="SkipParameter"/>
+    internal string LimitParameter { get; set; }
+
+    /// <summary>
     /// The fully rendered aggregate expression, for example <c>count(*)</c> or <c>sum(n0.age) </c>.
     /// <c>null</c> when the query returns rows rather than a single aggregate value.
     /// </summary>

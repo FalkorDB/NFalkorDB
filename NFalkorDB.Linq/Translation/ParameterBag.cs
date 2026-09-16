@@ -94,7 +94,17 @@ internal sealed class ParameterBag
             case DateTimeOffset dateTimeOffset:
                 return ToUtcText(dateTimeOffset.UtcDateTime);
             case TimeSpan timeSpan:
-                return (long)timeSpan.TotalMilliseconds;
+                // Whole milliseconds is the documented representation, but the CLR compares a
+                // TimeSpan at tick precision. Truncating turned a one-tick difference into zero, so
+                // a predicate or a sort silently changed. There is no wider integer representation
+                // to fall back on, so anything finer has to be refused.
+                if (timeSpan.Ticks % TimeSpan.TicksPerMillisecond != 0)
+                {
+                    throw new NotSupportedException(
+                        $"The TimeSpan {timeSpan} cannot be used as a query parameter, because it is stored as whole milliseconds and {timeSpan.Ticks % TimeSpan.TicksPerMillisecond} tick(s) would be lost, which can change which rows match. Round the value first, for example with TimeSpan.FromMilliseconds(Math.Round(value.TotalMilliseconds)).");
+                }
+
+                return timeSpan.Ticks / TimeSpan.TicksPerMillisecond;
             case Guid guid:
                 return guid.ToString("D", CultureInfo.InvariantCulture);
             case Point point:

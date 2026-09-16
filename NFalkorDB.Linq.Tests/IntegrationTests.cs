@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using NFalkorDB.Linq.Tests.Model;
 using StackExchange.Redis;
@@ -601,6 +602,50 @@ public class IntegrationTests
         Assert.IsType<int>(Context.Nodes<Person>().Sum(p => p.Age));
         Assert.IsType<int>(Context.Nodes<Person>().Count());
         Assert.IsType<double>(Context.Nodes<Person>().Max(p => p.Height));
+    }
+
+    [Fact]
+    public async Task Nullable_aggregates_agree_with_in_memory_linq()
+    {
+        // Carol has no score at all, so the nullable overloads have to skip a missing property
+        // rather than fold it in as zero.
+        var scores = new int?[] { 10, 20, null, 5 };
+
+        Assert.Equal(scores.Sum(), await Context.Nodes<Person>().SumAsync(p => p.Score));
+        Assert.Equal(scores.Average().Value, (await Context.Nodes<Person>().AverageAsync(p => p.Score)).Value, 10);
+        Assert.Equal(scores.Min(), await Context.Nodes<Person>().MinAsync(p => p.Score));
+        Assert.Equal(scores.Max(), await Context.Nodes<Person>().MaxAsync(p => p.Score));
+
+        // The source-shaped overloads reach the same result through a projection first.
+        Assert.Equal(scores.Sum(), await Context.Nodes<Person>().Select(p => p.Score).SumAsync());
+        Assert.Equal(scores.Average().Value, (await Context.Nodes<Person>().Select(p => p.Score).AverageAsync()).Value, 10);
+
+        // ... and the non-nullable ones still behave.
+        Assert.Equal(126, await Context.Nodes<Person>().SumAsync(p => p.Age));
+        Assert.Equal(31.5, await Context.Nodes<Person>().AverageAsync(p => p.Age));
+    }
+
+    [Fact]
+    public async Task ToArrayAsync_returns_a_right_sized_array()
+    {
+        var names = await Context.Nodes<Person>().OrderBy(p => p.Name).Select(p => p.Name).ToArrayAsync();
+
+        Assert.Equal(new[] { "Alice", "Bob", "Carol", "Dave" }, names);
+
+        var empty = await Context.Nodes<Person>().Where(p => p.Age > 1000).ToArrayAsync();
+        Assert.Empty(empty);
+    }
+
+    [Fact]
+    public async Task A_cancelled_token_is_observed_before_the_query_is_sent()
+    {
+        using var source = new CancellationTokenSource();
+        source.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => Context.Nodes<Person>().ToListAsync(source.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => Context.Nodes<Person>().CountAsync(source.Token));
     }
 
     [Node("Person")]
