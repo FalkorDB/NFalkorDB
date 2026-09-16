@@ -202,9 +202,11 @@ internal static class PartialEvaluator
                 return node;
             }
 
+            RejectQueryableSource(node);
+
             if (TryEvaluateDirectly(node, out var evaluated))
             {
-                return Expression.Constant(evaluated, node.Type);
+                return RejectQueryableValue(evaluated, node);
             }
 
             var lambda = Expression.Lambda<Func<object>>(Expression.Convert(node, typeof(object)));
@@ -220,7 +222,67 @@ internal static class PartialEvaluator
                 throw ex.InnerException;
             }
 
+            return RejectQueryableValue(value, node);
+        }
+
+        /// <summary>
+        /// Rejects a sequence operator whose source turns out to be a graph query.
+        /// </summary>
+        /// <remarks>
+        /// A captured query can be held behind any member typed as <see cref="IEnumerable{T}"/>, so
+        /// neither the static type nor a field read proves that a source is a local collection. The
+        /// source is evaluated on its own first: that is strictly less work than folding the whole
+        /// call, which would evaluate the source anyway and then run the query.
+        /// </remarks>
+        private static void RejectQueryableSource(Expression node)
+        {
+            if (!(node is MethodCallExpression call))
+            {
+                return;
+            }
+
+            var declaring = call.Method.DeclaringType;
+
+            if (declaring != typeof(System.Linq.Enumerable) && declaring != typeof(System.Linq.Queryable))
+            {
+                return;
+            }
+
+            var source = call.Object ?? (call.Arguments.Count > 0 ? call.Arguments[0] : null);
+
+            if (source == null || !TryEvaluateQuietly(source, out var value) || !(value is IQueryable))
+            {
+                return;
+            }
+
+            throw new NotSupportedException(
+                $"'{call.Method.Name}' cannot be evaluated while translating, because its source is a graph query. Running it here would issue a second query and fold the answer in as a literal. Materialize the source first, for example with ToList(), if its values are meant to be parameters.");
+        }
+
+        private static Expression RejectQueryableValue(object value, Expression node)
+        {
+            if (value is IQueryable)
+            {
+                throw new NotSupportedException(
+                    $"The expression '{node}' is a graph query, not a value, so it cannot be folded into the query being translated. Materialize it first, for example with ToList(), if its values are meant to be parameters.");
+            }
+
             return Expression.Constant(value, node.Type);
+        }
+
+        private static bool TryEvaluateQuietly(Expression node, out object value)
+        {
+            value = null;
+
+            try
+            {
+                value = Expression.Lambda<Func<object>>(Expression.Convert(node, typeof(object))).Compile()();
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
         }
 
         /// <summary>

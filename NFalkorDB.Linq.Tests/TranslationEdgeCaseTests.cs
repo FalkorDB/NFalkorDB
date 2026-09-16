@@ -601,6 +601,56 @@ public class TranslationEdgeCaseTests
             "cannot be translated",
             Assert.Throws<NotSupportedException>(
                 () => QueryHarnessExtensions.Nodes<Person>().Where(p => p.Age > other.Count()).Cypher()).Message);
+
+        // A query reached through a member cannot be read without invoking the member, so the value
+        // is only known once the source has been evaluated on its own.
+        Assert.Contains(
+            "its source is a graph query",
+            Assert.Throws<NotSupportedException>(
+                () => QueryHarnessExtensions.Nodes<Person>().Where(p => p.Age > QueryProperty.Count()).Cypher()).Message);
+
+        Assert.Contains(
+            "its source is a graph query",
+            Assert.Throws<NotSupportedException>(
+                () => QueryHarnessExtensions.Nodes<Person>().Where(p => p.Age > QueryMethod().Count()).Cypher()).Message);
+    }
+
+    private static IEnumerable<Person> QueryProperty => QueryHarnessExtensions.Nodes<Person>();
+
+    private static IEnumerable<Person> QueryMethod() => QueryHarnessExtensions.Nodes<Person>();
+
+    [Fact]
+    public void A_key_view_is_judged_by_the_comparer_of_the_map_behind_it()
+    {
+        // Dictionary<,>.KeyCollection answers Contains through the dictionary's key lookup, so it
+        // uses the dictionary's comparer while exposing no comparer of its own. Reading only the
+        // view turned a case-insensitive lookup into a case-sensitive IN.
+        var insensitive = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase) { ["alice"] = 1 };
+
+        Assert.Contains(
+            "custom comparer",
+            Assert.Throws<NotSupportedException>(
+                () => QueryHarnessExtensions.Nodes<Person>().Where(p => insensitive.Keys.Contains(p.Name)).Cypher()).Message);
+
+        var sorted = new SortedDictionary<string, int>(StringComparer.OrdinalIgnoreCase) { ["alice"] = 1 };
+
+        Assert.Contains(
+            "custom comparer",
+            Assert.Throws<NotSupportedException>(
+                () => QueryHarnessExtensions.Nodes<Person>().Where(p => sorted.Keys.Contains(p.Name)).Cypher()).Message);
+
+        // The default-comparer map is unaffected.
+        var ordinary = new Dictionary<string, int> { ["alice"] = 1 };
+
+        Assert.Equal(
+            "MATCH (n0:Person) WHERE n0.name IN $p0 RETURN n0",
+            QueryHarnessExtensions.Nodes<Person>().Where(p => ordinary.Keys.Contains(p.Name)).Cypher());
+
+        // So is the value view: it compares with EqualityComparer<TValue>.Default whatever the key
+        // comparer is, so Cypher's IN already matches it and rejecting it would be wrong.
+        Assert.Equal(
+            "MATCH (n0:Person) WHERE n0.age IN $p0 RETURN n0",
+            QueryHarnessExtensions.Nodes<Person>().Where(p => insensitive.Values.Contains(p.Age)).Cypher());
     }
 
     [Fact]
@@ -629,6 +679,11 @@ public class TranslationEdgeCaseTests
 
         Assert.Equal("MATCH (n0:Person) WHERE n0.age > $p0 RETURN n0", query.Cypher);
         Assert.Equal(2L, query.Parameters["p0"]);
+
+        // A chain of local operators is still just a local computation.
+        Assert.Equal(
+            "MATCH (n0:Person) WHERE n0.name IN $p0 RETURN n0",
+            QueryHarnessExtensions.Nodes<Person>().Where(p => names.Distinct().Contains(p.Name)).Cypher());
     }
 }
 

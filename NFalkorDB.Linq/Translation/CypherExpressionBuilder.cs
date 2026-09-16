@@ -697,23 +697,77 @@ internal sealed class CypherExpressionBuilder
             return;
         }
 
+        CheckComparers(constant.Value, constant.Value, methodName);
+
+        var owner = FindKeyViewOwner(constant.Value);
+
+        if (owner != null)
+        {
+            CheckComparers(owner, constant.Value, methodName);
+        }
+    }
+
+    private static void CheckComparers(object carrier, object reported, string methodName)
+    {
         foreach (var propertyName in new[] { "Comparer", "KeyComparer" })
         {
-            var property = constant.Value.GetType().GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance);
+            var property = carrier.GetType().GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance);
 
             if (property == null || property.GetIndexParameters().Length != 0 || !IsComparer(property.PropertyType))
             {
                 continue;
             }
 
-            if (IsDefaultComparer(property.GetValue(constant.Value), property.PropertyType))
+            if (IsDefaultComparer(property.GetValue(carrier), property.PropertyType))
             {
                 continue;
             }
 
             throw new NotSupportedException(
-                $"'{methodName}' on a '{constant.Value.GetType().Name}' that was built with a custom comparer cannot be translated to Cypher, because the IN operator always uses default equality and the comparer would be silently discarded. Materialize the collection with default equality first, or filter in memory.");
+                $"'{methodName}' on a '{reported.GetType().Name}' that was built with a custom comparer cannot be translated to Cypher, because the IN operator always uses default equality and the comparer would be silently discarded. Materialize the collection with default equality first, or filter in memory.");
         }
+    }
+
+    /// <summary>
+    /// Returns the collection behind a key view such as
+    /// <see cref="Dictionary{TKey, TValue}.KeyCollection"/>, or null when the value is not one.
+    /// </summary>
+    /// <remarks>
+    /// A key view answers <c>Contains</c> through its owner's key lookup, so it uses the owner's
+    /// comparer while exposing no comparer of its own. The value view is deliberately left alone:
+    /// it compares with <c>EqualityComparer&lt;TValue&gt;.Default</c> regardless of the key
+    /// comparer, so rejecting it would refuse a query that Cypher translates faithfully.
+    /// </remarks>
+    private static object FindKeyViewOwner(object value)
+    {
+        var type = value.GetType();
+
+        if (!type.IsNested || type.DeclaringType == null || !type.Name.StartsWith("Key", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        var owner = type.DeclaringType;
+
+        foreach (var field in type.GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public))
+        {
+            if (!field.FieldType.IsGenericType || !owner.IsGenericType ||
+                field.FieldType.GetGenericTypeDefinition() != owner.GetGenericTypeDefinition())
+            {
+                continue;
+            }
+
+            try
+            {
+                return field.GetValue(value);
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        return null;
     }
 
     private static bool IsComparer(Type type) =>

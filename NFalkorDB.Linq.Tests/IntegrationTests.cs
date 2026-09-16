@@ -583,6 +583,26 @@ public class IntegrationTests
         Assert.Contains("Name", exception.Message);
     }
 
+    [Fact]
+    public void An_aggregate_boxes_the_same_type_that_linq_would()
+    {
+        // The operator's return type is the declared type, not the element type. Targeting it made
+        // `object` the conversion target, so the driver's long was handed back untouched where LINQ
+        // boxes an int -- and an unbox to (int) threw InvalidCastException.
+        object max = Context.Nodes<Person>().Select(p => (object)p.Age).Max();
+        object min = Context.Nodes<Person>().Select(p => (object)p.Age).Min();
+
+        Assert.Equal(new object[] { 34, 28, 45, 19 }.Max().GetType(), max.GetType());
+        Assert.Equal(45, Assert.IsType<int>(max));
+        Assert.Equal(19, Assert.IsType<int>(min));
+
+        // A widening aggregate keeps the type the operator declares.
+        Assert.IsType<double>(Context.Nodes<Person>().Average(p => p.Age));
+        Assert.IsType<int>(Context.Nodes<Person>().Sum(p => p.Age));
+        Assert.IsType<int>(Context.Nodes<Person>().Count());
+        Assert.IsType<double>(Context.Nodes<Person>().Max(p => p.Height));
+    }
+
     [Node("Person")]
     private class MistypedPerson
     {

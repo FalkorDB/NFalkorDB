@@ -804,8 +804,29 @@ internal sealed class QueryTranslator
 
         if (_model.AggregateExpression != null)
         {
-            _projection = new ColumnShape(0, _resultType, null, $"the result of {terminal}");
+            _projection = new ColumnShape(0, AggregateValueType(), null, $"the result of {terminal}");
         }
+    }
+
+    /// <summary>
+    /// Picks the CLR type an aggregate's single column materializes as.
+    /// </summary>
+    /// <remarks>
+    /// The operator's return type is usually right, but it is the declared type rather than the
+    /// element type: <c>Select(p =&gt; (object)p.Age).Max()</c> returns <c>object</c>, and targeting
+    /// that hands back the driver's <c>long</c> where LINQ boxes an <c>int</c>. The projected column
+    /// type is preferred whenever it fits the declared type, which leaves widening aggregates such
+    /// as <c>Average</c> -- whose <c>double</c> result no <c>int</c> column is assignable to -- alone.
+    /// </remarks>
+    private Type AggregateValueType()
+    {
+        if (_projection is ColumnShape column && column.ValueType != null &&
+            column.ValueType != _resultType && _resultType.IsAssignableFrom(column.ValueType))
+        {
+            return column.ValueType;
+        }
+
+        return _resultType;
     }
 
     private void ApplyAggregate(string function, string explicitArgument, string comparison, string linqOperator)
