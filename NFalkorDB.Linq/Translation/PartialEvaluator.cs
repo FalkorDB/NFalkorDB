@@ -88,6 +88,14 @@ internal static class PartialEvaluator
                 return false;
             }
 
+            // A captured queryable is often held in a variable typed as IEnumerable<T>, which the
+            // type test above cannot see. The compiler stores a captured variable as a field on a
+            // closure, and reading a field cannot run user code, so the value is safe to inspect.
+            if (node is MemberExpression && TryReadCapturedValue(node, out var captured) && captured is IQueryable)
+            {
+                return false;
+            }
+
             // A ref struct such as ReadOnlySpan<T> cannot be boxed into a constant. C# 14 produces
             // these for `array.Contains(x)`, which now binds to MemoryExtensions.Contains.
             if (IsByRefLike(node.Type))
@@ -96,6 +104,43 @@ internal static class PartialEvaluator
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// Reads a constant, or a chain of field accesses rooted at one, without invoking any
+        /// property getter or other user code.
+        /// </summary>
+        private static bool TryReadCapturedValue(Expression node, out object value)
+        {
+            value = null;
+
+            if (node is ConstantExpression constant)
+            {
+                value = constant.Value;
+                return true;
+            }
+
+            if (!(node is MemberExpression member) || !(member.Member is FieldInfo field))
+            {
+                return false;
+            }
+
+            object target = null;
+
+            if (member.Expression != null && !TryReadCapturedValue(member.Expression, out target))
+            {
+                return false;
+            }
+
+            try
+            {
+                value = field.GetValue(target);
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
         }
 
         private static bool IsByRefLike(Type type) =>

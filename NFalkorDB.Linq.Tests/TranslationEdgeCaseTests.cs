@@ -558,6 +558,78 @@ public class TranslationEdgeCaseTests
             "MATCH (n0:Person) RETURN DISTINCT n0.name AS Name",
             QueryHarnessExtensions.Nodes<Person>().Select(p => new NameRecordStruct(p.Name)).Distinct().Cypher());
     }
+
+    [Fact]
+    public void A_terminal_operator_that_carries_its_own_default_is_rejected()
+    {
+        // The .NET 6 overloads add a default value as a trailing argument. Matching on the method
+        // name alone accepted them and then read only the two-argument shape, so both the predicate
+        // and the default were dropped and the query returned an unfiltered row.
+        var withBoth = Assert.Throws<NotSupportedException>(
+            () => new QueryHarness().Nodes<Person>().FirstOrDefault(p => p.Age > 30, null));
+
+        Assert.Contains("'FirstOrDefault' overload that takes a default value", withBoth.Message);
+        Assert.Contains("?? fallback", withBoth.Message);
+
+        Assert.Contains(
+            "'SingleOrDefault' overload that takes a default value",
+            Assert.Throws<NotSupportedException>(
+                () => new QueryHarness().Nodes<Person>().SingleOrDefault(p => p.Age > 30, null)).Message);
+
+        // The single-argument default overload is rejected for the same reason.
+        Assert.Contains(
+            "'FirstOrDefault' overload that takes a default value",
+            Assert.Throws<NotSupportedException>(
+                () => new QueryHarness().Nodes<Person>().FirstOrDefault((Person)null)).Message);
+
+        // The predicate overloads the provider does support keep working.
+        var harness = new QueryHarness();
+        harness.Nodes<Person>().FirstOrDefault(p => p.Age > 30);
+
+        Assert.Equal("MATCH (n0:Person) WHERE n0.age > $p0 RETURN n0 LIMIT 1", harness.CapturedCypher);
+    }
+
+    [Fact]
+    public void A_queryable_held_in_an_enumerable_variable_is_not_folded_away()
+    {
+        // The static type here is IEnumerable<Person>, so the type test for IQueryable never fired
+        // and the partial evaluator compiled and ran `other.Count()` during translation -- a second
+        // round trip, and exactly the silent client-side evaluation the provider promises to reject.
+        IEnumerable<Person> other = QueryHarnessExtensions.Nodes<Person>();
+
+        Assert.Contains(
+            "cannot be translated",
+            Assert.Throws<NotSupportedException>(
+                () => QueryHarnessExtensions.Nodes<Person>().Where(p => p.Age > other.Count()).Cypher()).Message);
+    }
+
+    [Fact]
+    public void Captured_in_memory_collections_are_still_folded()
+    {
+        // The guard above must not reach any further than a real queryable: an ordinary captured
+        // collection has no server round trip to trigger and has to keep folding into a parameter.
+        var names = new List<string> { "Alice", "Bob" };
+        IEnumerable<string> sequence = names;
+        var ages = new[] { 30, 40 };
+
+        Assert.Equal(
+            "MATCH (n0:Person) WHERE n0.name IN $p0 RETURN n0",
+            QueryHarnessExtensions.Nodes<Person>().Where(p => names.Contains(p.Name)).Cypher());
+
+        Assert.Equal(
+            "MATCH (n0:Person) WHERE n0.name IN $p0 RETURN n0",
+            QueryHarnessExtensions.Nodes<Person>().Where(p => sequence.Contains(p.Name)).Cypher());
+
+        Assert.Equal(
+            "MATCH (n0:Person) WHERE n0.age IN $p0 RETURN n0",
+            QueryHarnessExtensions.Nodes<Person>().Where(p => ages.Contains(p.Age)).Cypher());
+
+        // A method call over a captured collection is a local computation, not a query.
+        var query = QueryHarnessExtensions.Nodes<Person>().Where(p => p.Age > names.Count()).ToCypherQuery();
+
+        Assert.Equal("MATCH (n0:Person) WHERE n0.age > $p0 RETURN n0", query.Cypher);
+        Assert.Equal(2L, query.Parameters["p0"]);
+    }
 }
 
 /// <summary>A record struct, whose generated equality is structural over its fields.</summary>

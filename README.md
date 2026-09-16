@@ -296,6 +296,18 @@ filter keys can be translated against the matched entity. `Distinct` must come *
 because `RETURN DISTINCT` would otherwise remove duplicates from the projected values rather than
 from the matched rows. Reordering them throws a `NotSupportedException` explaining what to do instead.
 
+### Caller-supplied defaults
+
+The `FirstOrDefault` and `SingleOrDefault` overloads that take a fallback value are rejected. The
+provider returns `default(T)` when no row matches, so it cannot honor a caller's replacement, and
+accepting the overload would silently drop the fallback along with the predicate. Ask for the plain
+overload and substitute the value yourself:
+
+```csharp
+var person = context.Nodes<Person>().FirstOrDefault(p => p.Age > 30, fallback); // NotSupportedException
+var person = context.Nodes<Person>().FirstOrDefault(p => p.Age > 30) ?? fallback;
+```
+
 ### Equality semantics
 
 Cypher compares values, while LINQ compares with `EqualityComparer<T>.Default`. Where the two cannot

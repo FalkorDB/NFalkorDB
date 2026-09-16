@@ -688,12 +688,48 @@ internal sealed class QueryTranslator
     private static bool IsCollectionLike(Type type) =>
         type != typeof(string) && typeof(IEnumerable).IsAssignableFrom(type);
 
+    /// <summary>
+    /// Applies the optional predicate of a terminal operator, rejecting the .NET 6 overloads that
+    /// also carry a caller-supplied default.
+    /// </summary>
+    /// <remarks>
+    /// <c>FirstOrDefault(p =&gt; p.Age &gt; 30, fallback)</c> and its <c>SingleOrDefault</c> twin match
+    /// by name but carry three arguments. Handling only the two-argument shape silently dropped both
+    /// the predicate and the default, so the query returned an unfiltered row.
+    /// </remarks>
     private void ApplyOptionalPredicate(MethodCallExpression call)
     {
+        RejectCallerSuppliedDefault(call);
+
         if (call.Arguments.Count == 2)
         {
             ApplyWhere(GetUnaryLambda(call, 1), negate: false);
         }
+    }
+
+    private static void RejectCallerSuppliedDefault(MethodCallExpression call)
+    {
+        var last = call.Arguments.Count - 1;
+
+        if (last < 1 || IsLambda(call.Arguments[last]))
+        {
+            return;
+        }
+
+        throw new NotSupportedException(
+            $"The '{call.Method.Name}' overload that takes a default value is not supported, because the provider returns default({call.Method.ReturnType.Name}) when no row matches. Call '{call.Method.Name}' without the default and substitute it yourself, for example `?? fallback`.");
+    }
+
+    private static bool IsLambda(Expression expression)
+    {
+        var operand = expression;
+
+        while (operand is UnaryExpression unary && operand.NodeType == ExpressionType.Quote)
+        {
+            operand = unary.Operand;
+        }
+
+        return operand is LambdaExpression;
     }
 
     private void ApplyOptionalSelector(MethodCallExpression call)
