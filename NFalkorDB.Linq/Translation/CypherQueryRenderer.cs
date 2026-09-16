@@ -1,0 +1,370 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
+using System.Text;
+
+namespace NFalkorDB.Linq.Translation;
+
+/// <summary>
+/// Renders a <see cref="CypherQueryModel"/> into a single line of Cypher.
+/// </summary>
+internal static class CypherQueryRenderer
+{
+    internal static string Render(CypherQueryModel model)
+    {
+        var cypher = new StringBuilder();
+
+        cypher.Append("MATCH ");
+        cypher.Append(RenderPattern(model.Pattern));
+
+        if (model.WhereClauses.Count > 0)
+        {
+            cypher.Append(" WHERE ");
+            cypher.Append(string.Join(" AND ", model.WhereClauses.ToArray()));
+        }
+
+        if (model.AggregateExpression != null)
+        {
+            if (model.UseWithClause)
+            {
+                var withItems = RenderWithItems(model.ReturnItems).ToList();
+                var orderTerms = RenderWithOrderTerms(model, withItems);
+
+                cypher.Append(" WITH ");
+
+                if (model.Distinct)
+                {
+                    cypher.Append("DISTINCT ");
+                }
+
+                cypher.Append(string.Join(", ", withItems.ToArray()));
+
+                if (orderTerms.Count > 0)
+                {
+                    cypher.Append(" ORDER BY ");
+                    cypher.Append(string.Join(", ", orderTerms.ToArray()));
+                }
+
+                AppendSkipLimit(cypher, model);
+            }
+
+            cypher.Append(" RETURN ");
+            cypher.Append(model.AggregateExpression);
+
+            return cypher.ToString();
+        }
+
+        cypher.Append(" RETURN ");
+
+        if (model.Distinct)
+        {
+            cypher.Append("DISTINCT ");
+
+            GuardDistinctOrdering(model);
+        }
+
+        cypher.Append(string.Join(", ", model.ReturnItems.Select(RenderReturnItem).ToArray()));
+
+        AppendOrderSkipLimit(cypher, model);
+
+        return cypher.ToString();
+    }
+
+    /// <summary>
+    /// Rejects ordering by a column that a <c>DISTINCT</c> projection does not return.
+    /// </summary>
+    /// <remarks>
+    /// <c>RETURN DISTINCT n0.name ORDER BY n0.age</c> asks Cypher to sort deduplicated rows by a
+    /// value that deduplication discarded, so the order of equal names is arbitrary rather than
+    /// LINQ's first occurrence. The aggregate path rejects the same shape in
+    /// <see cref="ResolveOrderExpression"/>.
+    /// </remarks>
+    private static void GuardDistinctOrdering(CypherQueryModel model)
+    {
+        foreach (var term in model.OrderByTerms)
+        {
+            var projected = false;
+
+            foreach (var item in model.ReturnItems)
+            {
+                if (string.Equals(item.Expression, term.Expression, StringComparison.Ordinal) ||
+                    string.Equals(item.Alias, term.Expression, StringComparison.Ordinal))
+                {
+                    projected = true;
+
+                    break;
+                }
+            }
+
+            if (!projected)
+            {
+                throw new NotSupportedException(
+                    $"Ordering by '{term.Expression}' cannot be combined with Distinct, because the sort key is not part of the projection and the order of duplicate rows would be arbitrary. Order by a projected column, or drop the ordering.");
+            }
+        }
+    }
+
+    private static void AppendOrderSkipLimit(StringBuilder cypher, CypherQueryModel model)
+    {
+        if (model.OrderByTerms.Count > 0)
+        {
+            cypher.Append(" ORDER BY ");
+            cypher.Append(string.Join(", ", model.OrderByTerms
+                .Select(t => t.Expression + (t.Descending ? " DESC" : " ASC"))
+                .ToArray()));
+        }
+
+        AppendSkipLimit(cypher, model);
+    }
+
+    /// <summary>
+    /// Renders SKIP and LIMIT, preferring the bound placeholder when the count came from a caller.
+    /// </summary>
+    /// <remarks>
+    /// Binding the caller's counts keeps one plan in FalkorDB's query cache for every page of a
+    /// paged read; rendering them as literals produced a distinct query string, and so a distinct
+    /// cache entry, per page. A terminal operator's own row limit is part of the query's shape
+    /// rather than a caller value, so it stays a literal.
+    /// </remarks>
+    private static void AppendSkipLimit(StringBuilder cypher, CypherQueryModel model)
+    {
+        if (model.Skip.HasValue)
+        {
+            cypher.Append(" SKIP ");
+            cypher.Append(model.SkipParameter ?? model.Skip.Value.ToString(CultureInfo.InvariantCulture));
+        }
+
+        if (model.Limit.HasValue)
+        {
+            cypher.Append(" LIMIT ");
+            cypher.Append(model.LimitParameter ?? model.Limit.Value.ToString(CultureInfo.InvariantCulture));
+        }
+    }
+
+    /// <summary>
+    /// A WITH clause narrows what is in scope, so an ORDER BY attached to it can only mention the
+    /// columns the WITH carries. Terms that survive are rewritten to the WITH alias; anything else
+    /// is carried through as an extra column so the ordering still happens server side.
+    /// </summary>
+    private static List<string> RenderWithOrderTerms(CypherQueryModel model, List<string> withItems)
+    {
+        var terms = new List<string>(model.OrderByTerms.Count);
+
+        // Names the WITH declares. An order term that mentions anything else is out of scope.
+        var declared = new HashSet<string>(
+            model.ReturnItems.Select((item, index) => WithAlias(model.ReturnItems, index)),
+            StringComparer.Ordinal);
+
+        // Source identifiers the WITH carries under their own name, so `n0.age` still resolves.
+        // Tracked separately from the declared aliases, because a projected member could legally be
+        // named `n0` while `n0` itself is not in scope.
+        var passedThrough = new HashSet<string>(StringComparer.Ordinal);
+
+        for (var i = 0; i < model.ReturnItems.Count; i++)
+        {
+            var item = model.ReturnItems[i];
+
+            if (IsIdentifier(item.Expression) &&
+                string.Equals(item.Expression, WithAlias(model.ReturnItems, i), StringComparison.Ordinal))
+            {
+                passedThrough.Add(item.Expression);
+            }
+        }
+
+        foreach (var term in model.OrderByTerms)
+        {
+            var expression = ResolveOrderExpression(model, withItems, declared, passedThrough, term.Expression);
+
+            terms.Add(expression + (term.Descending ? " DESC" : " ASC"));
+        }
+
+        return terms;
+    }
+
+    private static string ResolveOrderExpression(
+        CypherQueryModel model,
+        List<string> withItems,
+        HashSet<string> declared,
+        HashSet<string> passedThrough,
+        string expression)
+    {
+        for (var i = 0; i < model.ReturnItems.Count; i++)
+        {
+            if (string.Equals(model.ReturnItems[i].Expression, expression, StringComparison.Ordinal))
+            {
+                return WithAlias(model.ReturnItems, i);
+            }
+        }
+
+        if (passedThrough.Contains(RootIdentifier(expression)))
+        {
+            return expression;
+        }
+
+        // Carrying the term as an extra column would add it to the DISTINCT key, so rows that the
+        // projection made equal would stop being equal.
+        if (model.Distinct)
+        {
+            throw new NotSupportedException(
+                $"Ordering by '{expression}' cannot be combined with Distinct, because the sort key is not part of the projection and carrying it through would change which rows count as duplicates. Order by a projected column, or drop the ordering.");
+        }
+
+        var alias = NextOrderAlias(declared);
+
+        withItems.Add(expression + " AS " + alias);
+        declared.Add(alias);
+
+        return alias;
+    }
+
+    private static string NextOrderAlias(HashSet<string> declared)
+    {
+        for (var index = 0; ; index++)
+        {
+            var candidate = "o" + index.ToString(CultureInfo.InvariantCulture);
+
+            if (!declared.Contains(candidate))
+            {
+                return candidate;
+            }
+        }
+    }
+
+    /// <summary>
+    /// The variable a property access hangs off, so <c>n0.age</c> yields <c>n0</c>.
+    /// </summary>
+    private static string RootIdentifier(string expression)
+    {
+        var dot = expression.IndexOf('.');
+
+        return dot < 0 ? expression : expression.Substring(0, dot);
+    }
+
+    private static string RenderReturnItem(ReturnItem item) =>
+        item.Alias == null ? item.Expression : item.Expression + " AS " + item.Alias;
+
+    /// <summary>
+    /// A WITH clause has to name every column so the RETURN after it can refer to them, whereas a
+    /// RETURN is free to leave a projection unnamed.
+    /// </summary>
+    internal static IEnumerable<string> RenderWithItems(IReadOnlyList<ReturnItem> items)
+    {
+        for (var i = 0; i < items.Count; i++)
+        {
+            var item = items[i];
+
+            if (item.Alias != null)
+            {
+                yield return item.Expression + " AS " + item.Alias;
+            }
+            else if (IsIdentifier(item.Expression))
+            {
+                yield return item.Expression;
+            }
+            else
+            {
+                yield return item.Expression + " AS c" + i.ToString(CultureInfo.InvariantCulture);
+            }
+        }
+    }
+
+    /// <summary>
+    /// The name a column carries after a WITH clause, which is what an aggregate placed after the
+    /// WITH has to reference.
+    /// </summary>
+    internal static string WithAlias(IReadOnlyList<ReturnItem> items, int index)
+    {
+        var item = items[index];
+
+        if (item.Alias != null)
+        {
+            return item.Alias;
+        }
+
+        return IsIdentifier(item.Expression)
+            ? item.Expression
+            : "c" + index.ToString(CultureInfo.InvariantCulture);
+    }
+
+    private static bool IsIdentifier(string expression)
+    {
+        if (string.IsNullOrEmpty(expression))
+        {
+            return false;
+        }
+
+        if (!char.IsLetter(expression[0]) && expression[0] != '_')
+        {
+            return false;
+        }
+
+        for (var i = 1; i < expression.Length; i++)
+        {
+            if (!char.IsLetterOrDigit(expression[i]) && expression[i] != '_')
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static string RenderPattern(IReadOnlyList<IPatternElement> pattern)
+    {
+        var rendered = new StringBuilder();
+
+        foreach (var element in pattern)
+        {
+            switch (element)
+            {
+                case NodePatternElement node:
+                    rendered.Append('(');
+                    rendered.Append(node.Alias);
+
+                    foreach (var label in node.Labels)
+                    {
+                        rendered.Append(':');
+                        rendered.Append(CypherIdentifier.Escape(label));
+                    }
+
+                    rendered.Append(')');
+                    break;
+
+                case RelationshipPatternElement relationship:
+                    if (relationship.Direction == TraversalDirection.Incoming)
+                    {
+                        rendered.Append("<-[");
+                    }
+                    else
+                    {
+                        rendered.Append("-[");
+                    }
+
+                    rendered.Append(relationship.Alias);
+
+                    if (!string.IsNullOrEmpty(relationship.RelationshipType))
+                    {
+                        rendered.Append(':');
+                        rendered.Append(CypherIdentifier.Escape(relationship.RelationshipType));
+                    }
+
+                    if (relationship.Direction == TraversalDirection.Outgoing)
+                    {
+                        rendered.Append("]->");
+                    }
+                    else
+                    {
+                        rendered.Append("]-");
+                    }
+
+                    break;
+
+                default:
+                    throw new InvalidOperationException($"Unknown pattern element '{element.GetType().Name}'.");
+            }
+        }
+
+        return rendered.ToString();
+    }
+}
