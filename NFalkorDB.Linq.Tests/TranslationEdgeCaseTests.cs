@@ -132,7 +132,99 @@ public class TranslationEdgeCaseTests
             () => new QueryHarness().Nodes<Person>().Select(p => new { p.Name, p.Age }).Max());
 
         Assert.Contains("'Max'", exception.Message);
-        Assert.Contains("produced 2", exception.Message);
+        Assert.Contains("IComparable", exception.Message);
+    }
+
+    [Fact]
+    public void Min_and_max_need_a_projection_the_clr_can_order()
+    {
+        // max(n0.age) would come back as a number while the caller was promised the anonymous type,
+        // and LINQ itself throws here because the type has no ordering.
+        Assert.Contains(
+            "IComparable",
+            Assert.Throws<NotSupportedException>(
+                () => new QueryHarness().Nodes<Person>().Min()).Message);
+
+        Assert.Contains(
+            "String[]",
+            Assert.Throws<NotSupportedException>(
+                () => new QueryHarness().Nodes<Person>().Select(p => p.Tags).Min()).Message);
+
+        // Scalars, nullable scalars and strings all stay translatable.
+        var harness = new QueryHarness();
+        harness.Nodes<Person>().Select(p => p.Age).Min();
+        Assert.Equal("MATCH (n0:Person) RETURN min(n0.age)", harness.CapturedCypher);
+
+        var nullable = new QueryHarness();
+        nullable.Nodes<Person>().Select(p => p.Score).Max();
+        Assert.Equal("MATCH (n0:Person) RETURN max(n0.score)", nullable.CapturedCypher);
+
+        var text = new QueryHarness();
+        text.Nodes<Person>().Select(p => p.Name).Min();
+        Assert.Equal("MATCH (n0:Person) RETURN min(n0.name)", text.CapturedCypher);
+    }
+
+    [Fact]
+    public void A_datetime_binds_as_a_round_trip_iso_8601_string()
+    {
+        // FalkorDB has no datetime() constructor, so the README documents ISO-8601 in UTC as the
+        // storage contract. That format also sorts lexically in chronological order.
+        var cutoff = new DateTime(2020, 1, 2, 3, 4, 5, DateTimeKind.Utc);
+        var query = QueryHarnessExtensions.Nodes<Person>().Where(p => p.Joined > cutoff).ToCypherQuery();
+
+        Assert.Equal("MATCH (n0:Person) WHERE n0.joined > $p0 RETURN n0", query.Cypher);
+        Assert.Equal("2020-01-02T03:04:05.0000000Z", Assert.IsType<string>(query.Parameters["p0"]));
+
+        Assert.Equal(1500L, ParameterBag.Normalize(TimeSpan.FromMilliseconds(1500)));
+    }
+
+    [Fact]
+    public void Comparing_a_collection_with_equals_is_rejected()
+    {
+        // C# compares string[] by reference, so this matches nothing in memory, while Cypher would
+        // compare the lists structurally and return rows.
+        var tags = new[] { "a" };
+
+        Assert.Contains(
+            "String[]",
+            Assert.Throws<NotSupportedException>(
+                () => QueryHarnessExtensions.Nodes<Person>().Where(p => p.Tags == tags).Cypher()).Message);
+
+        Assert.Contains(
+            "'!='",
+            Assert.Throws<NotSupportedException>(
+                () => QueryHarnessExtensions.Nodes<Person>().Where(p => p.Tags != tags).Cypher()).Message);
+
+        // Membership is still the supported way to ask about a collection, and scalar equality is
+        // untouched.
+        Assert.Equal(
+            "MATCH (n0:Person) WHERE $p0 IN n0.tags RETURN n0",
+            QueryHarnessExtensions.Nodes<Person>().Where(p => p.Tags.Contains("a")).Cypher());
+
+        Assert.Equal(
+            "MATCH (n0:Person) WHERE n0.name = $p0 RETURN n0",
+            QueryHarnessExtensions.Nodes<Person>().Where(p => p.Name == "Alice").Cypher());
+    }
+
+    [Fact]
+    public void Distinct_over_a_projection_holding_a_collection_member_is_rejected()
+    {
+        // The outer anonymous type has structural equality, but it compares its string[] member by
+        // reference, so RETURN DISTINCT n0.tags would still collapse rows LINQ keeps.
+        var message = Assert.Throws<NotSupportedException>(() =>
+            QueryHarnessExtensions.Nodes<Person>().Select(p => new { p.Tags }).Distinct().Cypher()).Message;
+
+        Assert.Contains("Distinct", message);
+        Assert.Contains("String[]", message);
+
+        // A projection of scalars, or one holding a whole node, is still allowed.
+        Assert.Equal(
+            "MATCH (n0:Person) RETURN DISTINCT n0.name AS Name, n0.age AS Age",
+            QueryHarnessExtensions.Nodes<Person>().Select(p => new { p.Name, p.Age }).Distinct().Cypher());
+
+        Assert.Equal(
+            "MATCH (n0:Person) RETURN DISTINCT n0 AS p, n0.name AS Name",
+            QueryHarnessExtensions.Nodes<Person>().Select(p => new { p, p.Name }).Distinct().Cypher());
     }
 
     [Fact]

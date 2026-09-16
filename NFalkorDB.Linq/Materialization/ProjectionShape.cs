@@ -107,6 +107,25 @@ internal sealed class ObjectShape : ProjectionShape
 
     internal override Type ResultType => _resultType;
 
+    /// <summary>
+    /// The shapes this object is built from, in constructor-argument then member-binding order.
+    /// </summary>
+    internal IEnumerable<ProjectionShape> Members
+    {
+        get
+        {
+            foreach (var argument in _arguments)
+            {
+                yield return argument;
+            }
+
+            foreach (var binding in _bindings)
+            {
+                yield return binding.Value;
+            }
+        }
+    }
+
     internal override object Materialize(Record record)
     {
         var arguments = new object[_arguments.Length];

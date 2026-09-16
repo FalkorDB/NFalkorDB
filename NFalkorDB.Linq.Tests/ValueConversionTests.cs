@@ -210,4 +210,30 @@ public class ValueConversionTests
         // member with value 2, hiding a real type mismatch.
         Assert.Throws<GraphMappingException>(() => Convert(value, typeof(Rating)));
     }
+
+    [Fact]
+    public void A_real_with_a_fraction_does_not_silently_round_into_an_integer()
+    {
+        // Convert.ChangeType rounds instead of failing, so 1.5 read into an int used to materialize
+        // as 2 -- a changed value with no mapping error to show for it.
+        foreach (var target in new[] { typeof(int), typeof(long), typeof(short), typeof(byte), typeof(int?) })
+        {
+            var exception = Assert.Throws<GraphMappingException>(() => Convert(1.5d, target));
+            Assert.Contains("1.5", exception.Message);
+        }
+
+        Assert.Throws<GraphMappingException>(() => Convert(1.5f, typeof(int)));
+        Assert.Throws<GraphMappingException>(() => Convert(1.5m, typeof(int)));
+
+        // A whole real still narrows, because FalkorDB returns a double for avg() and for any
+        // property written through a real-valued expression.
+        Assert.Equal(2, Convert(2.0d, typeof(int)));
+        Assert.Equal(-3L, Convert(-3.0d, typeof(long)));
+        Assert.Equal(2, Convert(2.0d, typeof(int?)));
+
+        // Widening a whole number to a real is unaffected.
+        Assert.Equal(3.0d, Convert(3L, typeof(double)));
+        Assert.Equal(1.5d, Convert(1.5d, typeof(double)));
+        Assert.Equal(1.5m, Convert(1.5d, typeof(decimal)));
+    }
 }

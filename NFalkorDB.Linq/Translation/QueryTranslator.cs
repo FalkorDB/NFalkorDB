@@ -535,18 +535,66 @@ internal sealed class QueryTranslator
     {
         if (_projection is ObjectShape shape && !HasProvableValueEquality(shape.ResultType))
         {
-            var name = shape.ResultType.Name;
+            var name = FriendlyName(shape.ResultType);
 
             throw new NotSupportedException(
                 $"Distinct cannot be applied to the projection '{name}', because LINQ compares '{name}' with EqualityComparer<T>.Default -- reference equality unless the type defines its own -- while RETURN DISTINCT compares the projected values, and the provider cannot prove the two agree. Project an anonymous type or a record that keeps its generated equality, or project the node itself to remove duplicates by graph identity.");
         }
 
-        if (_projection is ColumnShape column && column.Entity == null && IsCollectionLike(column.ValueType))
+        // Structural equality is only as good as its members: an anonymous type holding a string[]
+        // still compares that member with reference equality, so the outer type passing the test
+        // above is not enough.
+        if (_projection is ObjectShape members)
+        {
+            var offending = FindCollectionMember(members);
+
+            if (offending != null)
+            {
+                throw new NotSupportedException(
+                    $"Distinct cannot be applied to the projection '{FriendlyName(members.ResultType)}', because its '{offending.Name}' member is compared by reference in LINQ -- so every row stays distinct -- while Cypher compares lists and maps by value and collapses them. Project the members you want to compare as scalars.");
+            }
+        }
+
+        if (_projection is ColumnShape single && single.Entity == null && IsCollectionLike(single.ValueType))
         {
             throw new NotSupportedException(
-                $"Distinct cannot be applied to the '{column.ValueType.Name}' column, because LINQ compares a collection by reference and would keep every row, while Cypher compares lists and maps by value and would collapse them. Project a scalar, or call Distinct after materializing the rows.");
+                $"Distinct cannot be applied to the '{single.ValueType.Name}' column, because LINQ compares a collection by reference and would keep every row, while Cypher compares lists and maps by value and would collapse them. Project a scalar, or call Distinct after materializing the rows.");
         }
     }
+
+    /// <summary>
+    /// Walks a projection looking for a collection-valued member, including one nested inside
+    /// another fabricated object.
+    /// </summary>
+    private static Type FindCollectionMember(ObjectShape shape)
+    {
+        foreach (var member in shape.Members)
+        {
+            switch (member)
+            {
+                case ColumnShape column when column.Entity == null && IsCollectionLike(column.ValueType):
+                    return column.ValueType;
+
+                case ObjectShape nested:
+                    var inner = FindCollectionMember(nested);
+
+                    if (inner != null)
+                    {
+                        return inner;
+                    }
+
+                    break;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Renders a type name for an error message, replacing the compiler's mangled anonymous type
+    /// names with something a caller can recognize.
+    /// </summary>
+    private static string FriendlyName(Type type) => IsAnonymous(type) ? "anonymous type" : type.Name;
 
     private static bool HasProvableValueEquality(Type type) =>
         type.IsValueType ||
@@ -637,11 +685,13 @@ internal sealed class QueryTranslator
 
             case TerminalOperator.Min:
                 GuardNotEnumOrdered(EffectiveResultType(resultType), nameof(Queryable.Min));
+                GuardComparableAggregate(EffectiveResultType(resultType), nameof(Queryable.Min));
                 ApplyAggregate("min", null, null, nameof(Queryable.Min));
                 break;
 
             case TerminalOperator.Max:
                 GuardNotEnumOrdered(EffectiveResultType(resultType), nameof(Queryable.Max));
+                GuardComparableAggregate(EffectiveResultType(resultType), nameof(Queryable.Max));
                 ApplyAggregate("max", null, null, nameof(Queryable.Max));
                 break;
 
@@ -704,6 +754,28 @@ internal sealed class QueryTranslator
         _model.AggregateExpression = comparison == null
             ? function + "(" + argument + ")"
             : function + "(" + argument + ") " + comparison;
+    }
+
+    /// <summary>
+    /// Rejects <c>Min</c> and <c>Max</c> over a projection that has no ordering in the CLR.
+    /// </summary>
+    /// <remarks>
+    /// <c>Select(p =&gt; new { p.Age }).Max()</c> renders as <c>max(n0.age)</c>, but the caller is
+    /// promised the anonymous type back, and LINQ itself would throw because the type does not
+    /// implement <see cref="IComparable"/>. The same applies to a whole node and to a collection
+    /// column, so only a type the CLR can order is accepted.
+    /// </remarks>
+    private static void GuardComparableAggregate(Type type, string @operator)
+    {
+        var underlying = Nullable.GetUnderlyingType(type) ?? type;
+
+        if (underlying == typeof(object) || typeof(IComparable).IsAssignableFrom(underlying))
+        {
+            return;
+        }
+
+        throw new NotSupportedException(
+            $"'{@operator}' cannot be applied to the projected type '{FriendlyName(type)}', because it does not implement IComparable, so there is no ordering to take the {@operator.ToLowerInvariant()}imum of. Project a scalar, for example `.{@operator}(p => p.Age)`.");
     }
 
     private void EnsureDefaultProjection()

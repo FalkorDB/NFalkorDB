@@ -105,6 +105,8 @@ internal static class ValueConverter
                 throw Mismatch(value, targetType, context);
             }
 
+            RejectFractionalNarrowing(value, target, targetType, context);
+
             try
             {
                 return System.Convert.ChangeType(value, target, CultureInfo.InvariantCulture);
@@ -127,6 +129,54 @@ internal static class ValueConverter
 
         throw Mismatch(value, targetType, context);
     }
+
+    /// <summary>
+    /// Rejects a real value that would lose its fractional part on the way into an integral property.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="System.Convert.ChangeType(object, Type, IFormatProvider)"/> rounds rather than
+    /// failing, so a stored <c>1.5</c> read into an <c>int</c> would silently materialize as <c>2</c>.
+    /// A whole real such as <c>2.0</c> is still accepted, because FalkorDB returns a double for
+    /// aggregates such as <c>avg()</c> and for any property written through a real-valued expression.
+    /// </remarks>
+    private static void RejectFractionalNarrowing(object value, Type target, Type targetType, string context)
+    {
+        if (!IsIntegral(target))
+        {
+            return;
+        }
+
+        double real;
+
+        switch (value)
+        {
+            case double d:
+                real = d;
+                break;
+            case float f:
+                real = f;
+                break;
+            case decimal m:
+                real = (double)m;
+                break;
+            default:
+                return;
+        }
+
+        if (real == Math.Truncate(real))
+        {
+            return;
+        }
+
+        throw new GraphMappingException(
+            $"Cannot convert the value '{real.ToString(CultureInfo.InvariantCulture)}' to {targetType} for {context}, because it has a fractional part that the conversion would silently round away. Map the property as a floating point type.");
+    }
+
+    private static bool IsIntegral(Type type) =>
+        type == typeof(byte) || type == typeof(sbyte) ||
+        type == typeof(short) || type == typeof(ushort) ||
+        type == typeof(int) || type == typeof(uint) ||
+        type == typeof(long) || type == typeof(ulong);
 
     private static object ConvertEnum(object value, Type target, string context)
     {

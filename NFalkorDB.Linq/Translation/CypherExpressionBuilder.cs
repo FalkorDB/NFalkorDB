@@ -503,6 +503,35 @@ internal sealed class CypherExpressionBuilder
     /// compare those names lexically rather than by the underlying value. Equality is unaffected,
     /// because two names are equal exactly when the members are.
     /// </remarks>
+    /// <summary>
+    /// Rejects <c>==</c> and <c>!=</c> between collection- or map-valued operands.
+    /// </summary>
+    /// <remarks>
+    /// C# compares an array, list or dictionary with reference equality unless the type overrides it,
+    /// so <c>Where(p =&gt; p.Tags == tags)</c> is false for every materialized row. Cypher compares
+    /// lists and maps structurally, so the same predicate becomes <c>n0.tags = $p0</c> and matches on
+    /// equal contents. Translating it would return rows the in-memory query never would.
+    /// </remarks>
+    private static void RejectCollectionEquality(Expression operand, string @operator)
+    {
+        if (@operator != "=" && @operator != "<>")
+        {
+            return;
+        }
+
+        var type = operand.Type;
+
+        if (type == typeof(string) || !typeof(IEnumerable).IsAssignableFrom(type))
+        {
+            return;
+        }
+
+        var symbol = @operator == "=" ? "==" : "!=";
+
+        throw new NotSupportedException(
+            $"The operator '{symbol}' cannot be translated for the collection operand of type '{type.Name}', because C# compares it by reference -- so the in-memory query would match nothing -- while Cypher compares lists and maps by value. Compare a scalar property, or use Contains to test membership.");
+    }
+
     private CypherFragment RelationalComparison(Expression left, Expression right, string @operator)
     {
         var enumType = FindEnumType(left) ?? FindEnumType(right);
@@ -518,6 +547,9 @@ internal sealed class CypherExpressionBuilder
 
     private CypherFragment Comparison(Expression left, Expression right, string @operator)
     {
+        RejectCollectionEquality(left, @operator);
+        RejectCollectionEquality(right, @operator);
+
         // An enum compared against an integral literal has to be bound as the enum member name,
         // because that is how enum values are written to the graph.
         var enumType = FindEnumType(left) ?? FindEnumType(right);

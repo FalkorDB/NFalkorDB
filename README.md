@@ -314,7 +314,14 @@ agree the provider refuses to translate rather than quietly returning a differen
   ignore members, compare them case-insensitively, or call everything equal.
 - **`Distinct` over a collection-valued column.** `Select(p => p.Tags).Distinct()` would compare
   `string[]` by reference in LINQ and keep every row, while Cypher compares lists and maps by value
-  and collapses them.
+  and collapses them. The same applies to a collection *member*: `Select(p => new { p.Tags })` has
+  structural equality on the outside but still compares the array by reference.
+- **`==` and `!=` between collection operands.** `Where(p => p.Tags == tags)` matches nothing in
+  memory, because C# compares arrays by reference, but would become `n0.tags = $p0` and match on
+  equal contents. Use `Contains` to test membership instead.
+- **`Min` and `Max` over a projection the CLR cannot order.** `Select(p => new { p.Age }).Max()`
+  renders as `max(n0.age)` while the caller was promised the anonymous type back, and LINQ itself
+  throws on a type that is not `IComparable`.
 
 `Distinct` over a whole node is the one deliberate exception, and it is allowed: `RETURN DISTINCT n`
 removes duplicates by graph identity, which is exactly what makes `Distinct` useful after a traversal
@@ -329,6 +336,28 @@ it would mean running a second query against the server mid-translation. Materia
 
 Labels, relationship types and property keys are escaped as Cypher identifiers, so
 `[Property("first-name")]` renders as ``n0.`first-name` `` rather than being parsed as a subtraction.
+
+### Temporal values
+
+FalkorDB has no `datetime()` constructor — `RETURN datetime()` answers `Unknown function 'datetime'` —
+so a date has to be stored as either a string or a number, and the provider has to pick one. It binds
+`DateTime` and `DateTimeOffset` as round-trip ISO-8601 strings (`"o"`, so `2020-01-02T03:04:05.0000000Z`)
+and `TimeSpan` as whole milliseconds:
+
+```csharp
+context.Nodes<Person>().Where(p => p.Joined > cutoff)
+// MATCH (n0:Person) WHERE n0.joined > $p0 RETURN n0
+// $p0 = "2020-01-02T03:04:05.0000000Z"
+```
+
+ISO-8601 in UTC sorts lexically in the same order it sorts chronologically, so `>`, `<` and `ORDER BY`
+all behave, and `ValueConverter` parses the string back into a `DateTime` on the way out.
+
+**Store your dates the same way.** Cypher compares mismatched types as `false` rather than raising an
+error — `RETURN '2020-07-15' > 1600000000` answers `false` — so if a property holds epoch milliseconds
+while the mapped CLR property is a `DateTime`, every predicate quietly matches nothing. A schemaless
+database gives the provider no way to detect that, so map an epoch-milliseconds property as `long`
+and convert it yourself.
 
 ### Enums
 
