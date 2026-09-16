@@ -1,5 +1,9 @@
 using System;
+using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Collections.Immutable;
+using System.Collections.ObjectModel;
 using System.Linq;
 using NFalkorDB.Linq.Tests.Model;
 using NFalkorDB.Linq.Translation;
@@ -281,20 +285,59 @@ public class TranslationEdgeCaseTests
     [Fact]
     public void A_collection_without_a_custom_comparer_still_becomes_in()
     {
-        // The comparer guard must only reject collections that actually carry a non-default one.
-        var set = new HashSet<string> { "Alice" };
+        // The comparer and allow-list guards must only reject collections that genuinely define
+        // membership differently, so the whole standard collection surface is pinned here.
         var list = new List<string> { "Alice" };
+        var set = new HashSet<string> { "Alice" };
+        var queue = new Queue<string>();
+        var stack = new Stack<string>();
+        var linked = new LinkedList<string>();
         var array = new[] { "Alice" };
+        var immutableArray = ImmutableArray.Create("Alice");
+        var immutableList = ImmutableList.Create("Alice");
+        var readOnly = new ReadOnlyCollection<string>(list);
+        var bag = new ConcurrentBag<string>();
+        var map = new Dictionary<string, int> { { "Alice", 1 } };
+        var legacy = new ArrayList { "Alice" };
+        ICollection<string> collection = list;
+        IList<string> indexed = list;
+        ISet<string> unique = set;
+        IEnumerable<string> sequence = list;
+        IReadOnlyList<string> readOnlyList = list;
 
         foreach (var cypher in new[]
                  {
-                     QueryHarnessExtensions.Nodes<Person>().Where(p => set.Contains(p.Name)).Cypher(),
                      QueryHarnessExtensions.Nodes<Person>().Where(p => list.Contains(p.Name)).Cypher(),
+                     QueryHarnessExtensions.Nodes<Person>().Where(p => set.Contains(p.Name)).Cypher(),
+                     QueryHarnessExtensions.Nodes<Person>().Where(p => queue.Contains(p.Name)).Cypher(),
+                     QueryHarnessExtensions.Nodes<Person>().Where(p => stack.Contains(p.Name)).Cypher(),
+                     QueryHarnessExtensions.Nodes<Person>().Where(p => linked.Contains(p.Name)).Cypher(),
                      QueryHarnessExtensions.Nodes<Person>().Where(p => array.Contains(p.Name)).Cypher(),
+                     QueryHarnessExtensions.Nodes<Person>().Where(p => immutableArray.Contains(p.Name)).Cypher(),
+                     QueryHarnessExtensions.Nodes<Person>().Where(p => immutableList.Contains(p.Name)).Cypher(),
+                     QueryHarnessExtensions.Nodes<Person>().Where(p => readOnly.Contains(p.Name)).Cypher(),
+                     QueryHarnessExtensions.Nodes<Person>().Where(p => bag.Contains(p.Name)).Cypher(),
+                     QueryHarnessExtensions.Nodes<Person>().Where(p => map.Keys.Contains(p.Name)).Cypher(),
+                     QueryHarnessExtensions.Nodes<Person>().Where(p => legacy.Contains(p.Name)).Cypher(),
+                     QueryHarnessExtensions.Nodes<Person>().Where(p => collection.Contains(p.Name)).Cypher(),
+                     QueryHarnessExtensions.Nodes<Person>().Where(p => indexed.Contains(p.Name)).Cypher(),
+                     QueryHarnessExtensions.Nodes<Person>().Where(p => unique.Contains(p.Name)).Cypher(),
+                     QueryHarnessExtensions.Nodes<Person>().Where(p => sequence.Contains(p.Name)).Cypher(),
+                     QueryHarnessExtensions.Nodes<Person>().Where(p => readOnlyList.Contains(p.Name)).Cypher(),
                  })
         {
             Assert.Equal("MATCH (n0:Person) WHERE n0.name IN $p0 RETURN n0", cypher);
         }
+
+        // An enum array binds to the three-argument MemoryExtensions overload, and a graph property
+        // puts the collection on the right of IN rather than the left.
+        Assert.Equal(
+            "MATCH (n0:Person) WHERE n0.rating IN $p0 RETURN n0",
+            QueryHarnessExtensions.Nodes<Person>().Where(p => new[] { Rating.Great }.Contains(p.Rating)).Cypher());
+
+        Assert.Equal(
+            "MATCH (n0:Person) WHERE $p0 IN n0.tags RETURN n0",
+            QueryHarnessExtensions.Nodes<Person>().Where(p => p.Tags.Contains("a")).Cypher());
     }
 
     [Fact]

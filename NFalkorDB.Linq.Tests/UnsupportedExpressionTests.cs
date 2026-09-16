@@ -400,6 +400,48 @@ public class UnsupportedExpressionTests
     }
 
     [Fact]
+    public void A_contains_on_a_type_that_is_not_a_standard_collection_is_rejected()
+    {
+        // Dispatching on the method name alone would map any Contains onto IN. RangeSet.Contains is
+        // a range test, so 'IN [10, 40]' would match only the bounds instead of the whole range.
+        var range = new RangeSet { Min = 10, Max = 40 };
+
+        var message = Throws(() => QueryHarnessExtensions.Nodes<Person>()
+            .Where(p => range.Contains(p.Age))
+            .ToCypherQuery());
+
+        Assert.Contains("RangeSet.Contains", message);
+        Assert.Contains("standard collection types", message);
+
+        // Hiding List<T>.Contains with 'new' moves the declaring type to the deriving class.
+        var hidden = new AlwaysContains { "Alice" };
+
+        Assert.Contains("AlwaysContains.Contains", Throws(() => QueryHarnessExtensions.Nodes<Person>()
+            .Where(p => hidden.Contains(p.Name))
+            .ToCypherQuery()));
+
+        // An extension method named Contains reaches the static path.
+        Assert.Contains("ContainsExtensions.Contains", Throws(() => QueryHarnessExtensions.Nodes<Person>()
+            .Where(p => range.Contains(p.Name))
+            .ToCypherQuery()));
+    }
+
+    [Fact]
+    public void A_dictionary_contains_is_rejected_because_it_tests_keys()
+    {
+        // Hashtable.Contains asks whether a key is present, while IN compares the values it is
+        // handed, so translating it would answer a different question.
+        var table = new Hashtable { { "Alice", 1 } };
+
+        var message = Throws(() => QueryHarnessExtensions.Nodes<Person>()
+            .Where(p => table.Contains(p.Name))
+            .ToCypherQuery());
+
+        Assert.Contains("dictionary", message);
+        Assert.Contains("key", message);
+    }
+
+    [Fact]
     public void A_contains_source_with_a_custom_comparer_is_rejected()
     {
         // The set decides membership with its comparer, but IN always uses default equality, so
@@ -539,4 +581,36 @@ public class UnsupportedExpressionTests
             "MATCH (n0:Person) RETURN n0 ORDER BY n0.age ASC",
             QueryHarnessExtensions.Nodes<Person>().OrderBy(p => p.Age).Cypher());
     }
+}
+
+/// <summary>
+/// A collection whose <c>Contains</c> is a range test rather than a membership test. Enumerating it
+/// yields only its bounds, so translating the call to <c>IN</c> would silently change the result.
+/// </summary>
+internal class RangeSet : IEnumerable<int>
+{
+    public int Min { get; set; }
+
+    public int Max { get; set; }
+
+    public bool Contains(int value) => value >= Min && value <= Max;
+
+    public IEnumerator<int> GetEnumerator()
+    {
+        yield return Min;
+        yield return Max;
+    }
+
+    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+}
+
+/// <summary>Hides <see cref="List{T}.Contains"/> with a rule of its own.</summary>
+internal class AlwaysContains : List<string>
+{
+    public new bool Contains(string value) => true;
+}
+
+internal static class ContainsExtensions
+{
+    public static bool Contains(this RangeSet source, string value) => true;
 }

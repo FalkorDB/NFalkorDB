@@ -303,6 +303,10 @@ agree the provider refuses to translate rather than quietly returning a differen
 
 - **`Contains` over a collection built with a custom comparer.** `IN` always uses default equality, so
   a `HashSet<string>(StringComparer.OrdinalIgnoreCase)` would silently become a case-sensitive test.
+- **`Contains` on anything that is not a standard collection.** Only the standard .NET collection types and the
+  LINQ helpers are known to define `Contains` as membership by default equality. A type of your own
+  might define it as a range test or some other rule, so it is rejected rather than assumed. A
+  dictionary is rejected too, because its `Contains` asks about a key — use `map.Keys.Contains(x)`.
 - **`Distinct` over a projection to a type without value equality.** `Select(p => new Company { ... })`
   produces objects that LINQ compares by reference — every row is distinct — while `RETURN DISTINCT`
   collapses rows with equal properties. Project an anonymous type or a record, give the type value

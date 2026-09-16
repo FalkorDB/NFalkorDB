@@ -377,6 +377,10 @@ internal sealed class CypherExpressionBuilder
             // A collection Contains becomes IN; string.Contains was handled above as CONTAINS.
             if (call.Object != null && call.Arguments.Count == 1 && call.Object.Type != typeof(string))
             {
+                // Only the standard collection types are known to mean "is this value a member"
+                // by default equality, which is what IN tests.
+                RejectUnrecognizedContains(call);
+
                 // A set built around a custom comparer decides membership by that comparer, but IN
                 // always uses default equality, so translating it would change the result.
                 RejectNonDefaultComparer(call.Object, call.Method.Name);
@@ -389,6 +393,8 @@ internal sealed class CypherExpressionBuilder
             if (call.Object == null && call.Arguments.Count >= 2 && call.Arguments.Count <= 3 &&
                 call.Arguments[0].Type != typeof(string))
             {
+                RejectUnrecognizedContains(call);
+
                 // .NET 10 binds `array.Contains(x)` to the MemoryExtensions overload that also takes
                 // an equality comparer when the element type does not implement IEquatable<T>, which
                 // is the case for every enum. A null comparer means default equality, which is what
@@ -572,6 +578,71 @@ internal sealed class CypherExpressionBuilder
         }
 
         return !expression.Type.IsValueType || Nullable.GetUnderlyingType(expression.Type) != null;
+    }
+
+    /// <summary>
+    /// Rejects a <c>Contains</c> that is not one of the standard collection membership methods.
+    /// </summary>
+    /// <remarks>
+    /// Dispatching on the method name alone would map any method called <c>Contains</c> onto
+    /// <c>IN</c>, including one that defines membership some other way. A type whose
+    /// <c>Contains</c> is, say, a range test would then be translated into an equality test against
+    /// its enumerated elements and silently return a different row set. Only the BCL collections and
+    /// the LINQ helpers are known to mean "is this value an element, by default equality".
+    /// </remarks>
+    private static void RejectUnrecognizedContains(MethodCallExpression call)
+    {
+        var declaringType = call.Method.DeclaringType;
+
+        if (declaringType != null && IsRecognizedMembership(declaringType, call.Object == null))
+        {
+            // A dictionary's Contains asks about a key, not about the values IN would compare.
+            if (call.Object == null || !IsDictionary(call.Object.Type))
+            {
+                return;
+            }
+
+            throw new NotSupportedException(
+                $"'Contains' on the dictionary '{call.Object.Type.Name}' cannot be translated to Cypher, because it tests for a key while IN tests the values it is given. Test the Keys collection explicitly, for example 'map.Keys.Contains(x)'.");
+        }
+
+        throw new NotSupportedException(
+            $"'{(declaringType == null ? string.Empty : declaringType.Name + ".")}{call.Method.Name}' cannot be translated to Cypher, because only the standard collection types are known to define Contains as membership by default equality, and '{call}' may define it some other way. Copy the values into an array or a List first, or filter in memory.");
+    }
+
+    private static bool IsRecognizedMembership(Type declaringType, bool isStatic)
+    {
+        if (isStatic)
+        {
+            var name = declaringType.FullName;
+
+            return name == "System.Linq.Enumerable" ||
+                   name == "System.Linq.Queryable" ||
+                   name == "System.MemoryExtensions";
+        }
+
+        var @namespace = declaringType.Namespace;
+
+        return @namespace == "System.Collections" ||
+               (@namespace != null && @namespace.StartsWith("System.Collections.", StringComparison.Ordinal));
+    }
+
+    private static bool IsDictionary(Type type)
+    {
+        if (typeof(IDictionary).IsAssignableFrom(type))
+        {
+            return true;
+        }
+
+        foreach (var contract in type.GetInterfaces())
+        {
+            if (contract.IsGenericType && contract.GetGenericTypeDefinition() == typeof(IDictionary<,>))
+            {
+                return true;
+            }
+        }
+
+        return type.IsGenericType && type.GetGenericTypeDefinition() == typeof(IDictionary<,>);
     }
 
     /// <summary>
