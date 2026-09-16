@@ -201,4 +201,22 @@ public class ParameterBindingTests
 
         Assert.Equal("boom", exception.Message);
     }
+
+    [Fact]
+    public void A_ulong_that_does_not_fit_a_signed_integer_is_rejected()
+    {
+        // FalkorDB integers are signed 64-bit and the server clamps rather than failing:
+        //   CYPHER x=18446744073709551615 RETURN $x  ->  9223372036854775807
+        // Binding it as a double instead only trades clamping for precision loss, so neither form
+        // can carry the value and it is refused.
+        var exception = Assert.Throws<NotSupportedException>(() => ParameterBag.Normalize(ulong.MaxValue));
+
+        Assert.Contains("18446744073709551615", exception.Message);
+        Assert.Contains("64-bit", exception.Message);
+
+        // Everything that does fit still binds exactly, including the boundary.
+        Assert.Equal(long.MaxValue, ParameterBag.Normalize((ulong)long.MaxValue));
+        Assert.Equal(42L, ParameterBag.Normalize((ulong)42));
+        Assert.Equal(0L, ParameterBag.Normalize((ulong)0));
+    }
 }

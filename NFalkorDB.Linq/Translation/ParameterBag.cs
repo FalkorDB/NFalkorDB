@@ -70,9 +70,16 @@ internal sealed class ParameterBag
             case uint _:
                 return Convert.ToInt64(value, CultureInfo.InvariantCulture);
             case ulong u:
-                return u <= long.MaxValue
-                    ? (object)Convert.ToInt64(u)
-                    : Convert.ToDouble(u, CultureInfo.InvariantCulture);
+                // FalkorDB integers are signed 64-bit. There is no representation for a larger
+                // value: sent as an integer literal the server silently clamps it to long.MaxValue,
+                // and sent as a double it loses precision, so both would bind a different number.
+                if (u > long.MaxValue)
+                {
+                    throw new NotSupportedException(
+                        $"The value {u.ToString(CultureInfo.InvariantCulture)} cannot be used as a query parameter, because it does not fit in the signed 64-bit integer FalkorDB stores and would be bound as a different number. Use a smaller value, or map the property as a string.");
+                }
+
+                return Convert.ToInt64(u);
             case float _:
             case decimal _:
                 return Convert.ToDouble(value, CultureInfo.InvariantCulture);
