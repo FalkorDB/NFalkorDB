@@ -67,3 +67,15 @@ cs
 NFalkorDBAPITest
 FalkorDBAPITest
 APIs
+LINQ
+Linq
+CLR
+Parameterization
+enum
+enums
+lexically
+nullable
+schemaless
+materializer
+indexable
+comparer

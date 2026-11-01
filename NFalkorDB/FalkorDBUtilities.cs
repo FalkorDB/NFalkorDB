@@ -129,7 +129,7 @@ internal static class FalkorDBUtilities
     {
         var arrayElements = array.Select(x =>
         {
-            if (x.GetType().IsArray)
+            if (x != null && x.GetType().IsArray)
             {
                 return ArrayToString((object[]) x);
             }

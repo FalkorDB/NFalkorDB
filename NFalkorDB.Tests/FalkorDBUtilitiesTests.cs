@@ -103,6 +103,16 @@ public class FalkorDBUtilitiesTests
             [
                 new Dictionary<string, object> {{"param", new List<string> {"1", "2", "3"}}},
                 "CYPHER param=[\"1\", \"2\", \"3\"] RETURN $param"
+            ],
+
+            [
+                new Dictionary<string, object> {{"param", new object[] {"1", null, 3}}},
+                "CYPHER param=[\"1\", null, 3] RETURN $param"
+            ],
+
+            [
+                new Dictionary<string, object> {{"param", new List<string> {"1", null}}},
+                "CYPHER param=[\"1\", null] RETURN $param"
             ]
         ];
     }
