@@ -285,11 +285,16 @@ public class Graph
 
     internal static string BuildQueryBodyForProcedureCall(string procedure, ref IEnumerable<string> args, Dictionary<string, List<string>> kwargs)
     {
-        args = args?.Select(QuoteString);
+        var quotedArgs = args ?
+                .Select(a => a ?? throw new System.ArgumentException("Procedure args cannot contain null values.", nameof(args)))
+                .Select(QuoteString)
+                .ToArray();
+        
+        args = quotedArgs;
 
         var queryBody = new StringBuilder();
 
-        queryBody.Append(args != null ? $"CALL {procedure}({string.Join(",", args)})" : $"CALL {procedure}()");
+        queryBody.Append(quotedArgs != null ? $"CALL {procedure}({string.Join(",", quotedArgs)})" : $"CALL {procedure}()");
 
         if (kwargs != null && kwargs.TryGetValue("y", out var kwargsList) && kwargsList != null && kwargsList.Count > 0)
         {
