@@ -68,7 +68,7 @@ public sealed class FalkorDB
     {
         try
         {
-            var result = _db.Execute(Command.LIST, flags);
+            var result = _db.Execute(Command.LIST, Array.Empty<object>(), flags);
 
             if (result.Resp2Type != ResultType.Array)
             {
@@ -96,7 +96,7 @@ public sealed class FalkorDB
     /// </summary>
     public async System.Threading.Tasks.Task<IReadOnlyList<string>> ListGraphsAsync(CommandFlags flags = CommandFlags.None)
     {
-        var result = await _db.ExecuteAsync(Command.LIST, flags).ConfigureAwait(false);
+        var result = await _db.ExecuteAsync(Command.LIST, Array.Empty<object>(), flags).ConfigureAwait(false);
 
         if (result.Resp2Type != ResultType.Array)
         {

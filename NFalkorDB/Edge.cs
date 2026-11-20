@@ -65,7 +65,7 @@ public class Edge : GraphEntity
             int hash = 17;
 
             hash = hash * 31 + base.GetHashCode();
-            hash = hash * 31 + RelationshipType.GetHashCode();
+            hash = hash * 31 + (RelationshipType?.GetHashCode() ?? 0);
             hash = hash * 31 + Source.GetHashCode();
             hash = hash * 31 + Destination.GetHashCode();
 
@@ -87,7 +87,7 @@ public class Edge : GraphEntity
         sb.Append($", destination={Destination}");
         sb.Append($", id={Id}");
         sb.Append(", propertyMap={");
-        sb.Append(string.Join(", ", PropertyMap.Select(pm => $"{pm.Key}={pm.Value.ToString()}")));
+        sb.Append(string.Join(", ", PropertyMap.Select(pm => $"{pm.Key}={pm.Value}")));
         sb.Append("}}");
 
         return sb.ToString();

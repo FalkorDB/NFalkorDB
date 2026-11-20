@@ -86,7 +86,25 @@ public sealed class Record
             return false;
         }
 
-        return Enumerable.SequenceEqual(Keys, that.Keys) && Enumerable.SequenceEqual(Values, that.Values);
+        if (Keys.Count != that.Keys.Count || Values.Count != that.Values.Count)
+        {
+            return false;
+        }
+
+        if (!Enumerable.SequenceEqual(Keys, that.Keys))
+        {
+            return false;
+        }
+
+        for (var i = 0; i < Values.Count; i++)
+        {
+            if (!Objects.AreEqual(Values[i], that.Values[i]))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /// <summary>
@@ -99,8 +117,17 @@ public sealed class Record
         {
             int hash = 17;
 
-            hash = hash * 31 + Keys.GetHashCode();
-            hash = hash * 31 + Values.GetHashCode();
+            hash = hash * 31 + Keys.Count.GetHashCode();
+
+            foreach (var key in Keys)
+            {
+                hash = hash * 31 + (key?.GetHashCode() ?? 0);
+            }
+
+            foreach (var value in Values)
+            {
+                hash = hash * 31 + Objects.GetValueHashCode(value);
+            }
 
             return hash;
         }

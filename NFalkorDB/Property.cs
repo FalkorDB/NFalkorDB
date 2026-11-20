@@ -1,4 +1,3 @@
-using System.Collections;
 using System.Text;
 
 namespace NFalkorDB;
@@ -64,19 +63,8 @@ public class Property
         {
             int hash = 17;
 
-            hash = hash * 31 + Name.GetHashCode();
-
-            if (Value is IEnumerable enumerableValue)
-            {
-                foreach(var value in enumerableValue)
-                {
-                    hash = hash * 31 + value.GetHashCode();
-                }
-            }
-            else
-            {
-                hash = hash * 31 + Value.GetHashCode();
-            }
+            hash = hash * 31 + (Name?.GetHashCode() ?? 0);
+            hash = hash * 31 + Objects.GetValueHashCode(Value);
 
             return hash;
         }

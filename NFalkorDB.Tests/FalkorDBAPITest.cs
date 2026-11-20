@@ -31,13 +31,16 @@ public class FalkorDBAPITest : BaseTest
         graph.Query("RETURN 1");
 
         var graphs = client.ListGraphs();
-        // Depending on server/module version, GRAPH.LIST contents may vary; just ensure the call succeeds.
         Assert.NotNull(graphs);
+        Assert.Contains("phase1_list_graphs", graphs);
 
-        // round-trip a config value (where allowed)
-        // for safety, just GET a common configuration key
-        var timeoutConfig = client.GetConfig("TIMEOUT_MS");
-        // value may be null or numeric depending on server config, but call should not throw
+        // round-trip a real configuration field
+        var timeoutConfig = client.GetConfig("TIMEOUT_DEFAULT");
+        Assert.NotNull(timeoutConfig);
+
+        // an unknown field is reported by the server as an error, which the
+        // client swallows and reports as "no value"
+        Assert.Null(client.GetConfig("NOT_A_REAL_CONFIG_FIELD"));
     }
 
     [Fact]
@@ -209,7 +212,7 @@ public class FalkorDBAPITest : BaseTest
         {
             try
             {
-                _muxr = ConnectionMultiplexer.Connect(RedisConnectionString);
+                _muxr = ConnectionMultiplexer.Connect(AdminConnectionOptions);
                 _muxr.GetDatabase().Execute("FLUSHDB");
 
                 _api = new FalkorDB(_muxr.GetDatabase(0)).SelectGraph("social");
